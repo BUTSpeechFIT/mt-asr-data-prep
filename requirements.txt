@@ -1,0 +1,2 @@
+lhotse
+chime-utils @ git+https://github.com/Lakoc/chime-utils
