@@ -22,7 +22,7 @@ echo "Preparing NOTSOFAR1 dataset for microphone types: ${MIC_TYPES[*]}"
 # Download and prepare NOTSOFAR1 data once (if not already done)
 if [[ ! -d "$DATA_DIR/notsofar" ]]; then
     echo "Downloading NOTSOFAR1 data..."
-    chime-utils dgen notsofar1 "$DATA_DIR/nsf" "$DATA_DIR/notsofar" --part="train,dev,eval"
+    chime-utils dgen notsofar1 "$DATA_DIR/nsf" "$DATA_DIR/notsofar" --part="train,dev,eval" --download --txt-norm none
 fi
 
 # Function to process cutset for a given mic type and split
@@ -58,7 +58,7 @@ process_cutset() {
 # Process each microphone type
 for MIC_TYPE in "${MIC_TYPES[@]}"; do
     echo "Processing NOTSOFAR1 $MIC_TYPE..."
-    
+
     # Validate mic type and set parameters
     case "$MIC_TYPE" in
         sdm)
@@ -79,27 +79,27 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
 
     # Prepare manifests
     chime-utils lhotse-prep notsofar1 -d "$DATASET_PARTS" --txt-norm none -m "$MIC_TYPE" "$DATA_DIR/notsofar" "$MANIFESTS_DIR"
-    
+
     # Process cutsets for all splits
     for split in "${SPLITS[@]}"; do
         # Extract split name without suffix for processing
         split_name="${split%${SUFFIX}}"
         process_cutset "$MIC_TYPE" "$split_name" "$SUFFIX"
     done
-    
-    # Apply pre-segmentation using alignments for train split
+
+#    # Apply pre-segmentation using alignments for train split
     manifest_prefix="notsofar1-${MIC_TYPE}"
     train_split_suffix=""
     if [[ "$MIC_TYPE" == "sdm" ]]; then
         train_split_suffix="_sc"
     fi
-    
-    echo "Applying pre-segmentation to training data..."
+
+    echo "Preparing windowed cuts for Whisper training..."
     python3 "$DATA_SCRIPTS_PATH/pre_segment_using_alignments.py" \
         --input "$MANIFESTS_DIR/${manifest_prefix}_cutset_train${train_split_suffix}.jsonl.gz" \
         --output "$MANIFESTS_DIR/${manifest_prefix}_cutset_train${train_split_suffix}_30s.jsonl.gz" \
         --max_len 30
-    
+
     echo "NOTSOFAR1 $MIC_TYPE dataset preparation completed"
 done
 
