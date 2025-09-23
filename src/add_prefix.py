@@ -8,6 +8,8 @@ def main(input_manifest, output_manifest, prefix):
     for r in cset:
         r.id = prefix + "_" + r.id
         r.recording.id = prefix + "_" + r.recording.id
+        for supervision in r.supervisions:
+            supervision.id = prefix + "_" + supervision.id
     cset.to_file(output_manifest)
 
 

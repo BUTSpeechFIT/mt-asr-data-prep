@@ -5,16 +5,25 @@ from pathlib import Path
 from typing import Optional
 
 import lhotse
-from intervaltree import IntervalTree
-from lhotse import CutSet, SupervisionSet, RecordingSet
+from lhotse import CutSet
 from lhotse import fastcopy, load_manifest
 from lhotse.lazy import LazyFlattener, LazyMapper
 
 # TODO: @Dominik Klement - please refactor this :(((((
 
+
+def filter_punctuation_aligments(cut):
+    new_sups = []
+    for sup in cut.supervisions:
+        new_aligments = [word for word in sup.alignment['word'] if  len(word.symbol.translate(str.maketrans('', '', "!\"#$%&()*+,./:;<=>?@[\\]^_`'{|}~"))) > 0]
+        sup.alignment['word'] = new_aligments
+        new_sups.append(sup)
+    cut.supervisions = new_sups
+    return cut
+
+
 def _prepare_segmented_data(
-        recordings: RecordingSet,
-        supervisions: SupervisionSet,
+        cuts: CutSet,
         split: str,
         output_path: Optional[str] = None,
         return_close_talk: bool = False,
@@ -23,21 +32,19 @@ def _prepare_segmented_data(
         num_jobs=1,
 ) -> lhotse.CutSet:
     output_path = Path(output_path) if output_path else None
-
-    logging.info("Trimming to alignments")
-    # new_sups = SupervisionSet.from_segments(LazyFlattener(LazyMapper(supervisions, _trim_to_alignments)))
-    cuts: CutSet = CutSet.from_manifests(recordings=recordings, supervisions=supervisions)
-    # cuts = cuts.transform_text(lambda text: text.lower())  # TODO: IMHO, it's not necessary to force lower-case (make it optional?)
-
     logging.info("Trimming to groups with max_pause=2s")
     cuts = cuts.trim_to_supervision_groups(max_pause=2, num_jobs=num_jobs).to_eager()
     for c in cuts:
         for s in c.supervisions:
             if 'word' in s.alignment:
                 s.alignment['word'] = [a.with_offset(-c.start) for a in s.alignment['word']]
-    logging.info("Windowing the overllapping segments to max 30s")
+    logging.info("Windowing the overlapping segments to max 30s")
+
+    cuts = cuts.map(filter_punctuation_aligments).to_eager()
+
     cuts = split_overlapping_segments(cuts, max_segment_duration=max_segment_duration, num_jobs=num_jobs).to_eager()
 
+    logging.info("Saving the output")
     if output_path is not None:
         # Covers all cases: .json, .jsonl, .jsonl.gz
         if '.json' in str(output_path):
@@ -299,120 +306,6 @@ def _split_cut_perseg(cut: lhotse.cut.Cut, max_len=30, use_ovl_fb_sups=True):
 
     return new_cuts
 
-
-"""
-Adjusting the function.
-We know that the cut was already pre-split to groups, meaning the last supervision is at least 2s apart from the next one,
-indicating a timestamp in Whisper inference.
-This means that we can automatically flag last cut that is created by splitting as a "silence-afterwards" cut.
-We know that if there was a silence segemnts, it would've been split already by the preceeding processing.
-Hence, it's sufficient to flag the last cut only and skip the rest and flag with "false" flag afterwards.
-"""
-
-
-def _split_cut(cut: lhotse.cut.Cut, max_len=30):
-    if len(cut.supervisions) == 0:
-        return []
-
-    orig_cut = cut
-
-    ss_areas = _get_single_spk_audio_intervals(cut)
-
-    t = IntervalTree()
-    for s, e in ss_areas:
-        t[s:e] = 'x'
-    word_end_t = IntervalTree()
-    for s in cut.supervisions:
-        if t.at(s.end):
-            # We can't add point since it's an interval tree. As we want to do intersection with another int. tree, we can't use some balanced one only.
-            word_end_t[s.end - 1e-4:s.end + 1e-4] = 'x'
-
-    sup_groups = []
-    current_sup_group = [cut.supervisions[0]]
-
-    for i, s in enumerate(cut.supervisions[1:]):
-        # If the current word endpoint is in single-spk int, we can split, if not, we need to unconditionally add it to the current sup group
-        if not current_sup_group or (not word_end_t.at(s.end) and s.end - current_sup_group[0].start <= max_len):
-            current_sup_group.append(s)
-        else:
-            # We know that current word end point is not overlapped with any other word spoken by other speakers, so we can decide if we want to split.
-            # The issue here is that we don't know when not to split - i.e. we could've split the current word but we didn't as we didn't reach the max_len limit,
-            # but all the following supervisions are overlapped for the next 10s. If we'd split before, we could've put all the overlapped ones into a single group.
-            if len(current_sup_group) > 0:
-                other_possible_split_points = word_end_t[s.end + 1e-3:current_sup_group[
-                                                                          0].start + max_len]  # We need to adjust the interval tree using the endpoints.
-                if i == len(cut.supervisions[1:]) - 1:
-                    other_possible_split_points = True
-
-                # It may happen that the rest of the split is overlapped, but if we know that we cannot exceed the max_len,
-                #  we set other_possible_split_points = True which means that the current group is not going to be split in the for loop
-                #  but is going to be appended to the sup_groups after the forloop ends.
-
-                # This is not correct: We need to check u
-                if cut.duration - current_sup_group[0].start < max_len:
-                    other_possible_split_points = True
-            else:
-                other_possible_split_points = True
-
-            if len(current_sup_group) > 0 and s.end - current_sup_group[0].start >= max_len:
-                sup_groups.append(current_sup_group)
-                current_sup_group = [s]
-            elif not other_possible_split_points:
-                current_sup_group.append(s)
-                sup_groups.append(current_sup_group)
-                current_sup_group = []
-            else:
-                current_sup_group.append(s)
-
-    if current_sup_group:
-        sup_groups.append(current_sup_group)
-
-    sup_groups = [sorted(sups, key=lambda s: (s.start, s.end)) for sups in sup_groups]
-    start_groups = [min(s.start for s in sups) for sups in sup_groups]
-    end_groups = [max(s.end for s in sups) for sups in sup_groups]
-    cuts = [
-        lhotse.fastcopy(cut, id=f"{cut.id}-{i}", supervisions=[s.with_offset(-start) for s in sups],
-                        start=cut.start + start, duration=end - start)
-        for i, (sups, start, end) in enumerate(zip(sup_groups, start_groups, end_groups))
-    ]
-
-    per_spk_supervisions = {}
-    for sup in orig_cut.supervisions:
-        if sup.speaker not in per_spk_supervisions:
-            per_spk_supervisions[sup.speaker] = []
-        per_spk_supervisions[sup.speaker].append(sup)
-
-    for spk, sups in per_spk_supervisions.items():
-        per_spk_supervisions[spk] = sorted(sups, key=lambda s: (s.start, s.end))
-
-    per_spk_supervisions_idxes = {spk: 0 for spk in per_spk_supervisions.keys()}
-    for c in cuts:
-        cut_spks = CutSet.from_cuts([c]).speakers
-        per_spk_flags = {spk: False for spk in cut_spks}
-        for spk in cut_spks:
-            last_spk_sup_within_cut = None
-            for i, sup in enumerate(per_spk_supervisions[spk][per_spk_supervisions_idxes[spk]:]):
-                if c.start + sup.start < c.end:
-                    last_spk_sup_within_cut = sup
-                    per_spk_supervisions_idxes[spk] += 1
-                else:
-                    break
-
-            # print(orig_cut.start + per_spk_supervisions[spk][per_spk_supervisions_idxes[spk]].start - (c.start + last_spk_sup_within_cut.end))
-
-            # 2 seconds
-            is_next_sup_close = last_spk_sup_within_cut is not None and len(per_spk_supervisions[spk]) > \
-                                per_spk_supervisions_idxes[spk] and (orig_cut.start + per_spk_supervisions[spk][
-                per_spk_supervisions_idxes[spk]].start - (c.start + last_spk_sup_within_cut.end)) < 2
-            per_spk_flags[spk] = not is_next_sup_close
-
-        c.custom = {
-            'per_spk_flags': per_spk_flags
-        }
-
-    return cuts
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', type=str, required=True, help='Path to the input manifest')
@@ -423,10 +316,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     cset = load_manifest(args.input)
-    rs, ss, _ = cset.decompose()
-
-    _prepare_segmented_data(recordings=rs,
-                            supervisions=ss,
+    _prepare_segmented_data(cuts=cset,
                             split=None,
                             output_path=args.output,
                             return_close_talk=False,

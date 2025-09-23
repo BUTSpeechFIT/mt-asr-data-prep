@@ -123,7 +123,7 @@ is_dataset_available() {
 # Setup directory structure
 setup_directories() {
     local data_dir="$ROOT_DIR/data"
-    local manifests_dir="$data_dir/manifests_new"
+    local manifests_dir="$data_dir/manifests"
     
     log_info "Setting up directory structure..."
     mkdir -p "$data_dir" "$manifests_dir" "$data_dir/tmp" "$DATASET_SCRIPTS_DIR"
