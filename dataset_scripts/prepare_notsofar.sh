@@ -12,6 +12,7 @@ DATA_SCRIPTS_PATH="$3"
 shift 3
 MIC_TYPES=("$@")
 
+NOTSOFAR_MANIFESTS_DIR="${MANIFESTS_DIR}/notsofar1"
 # Default to sdm if no mic types specified
 if [[ ${#MIC_TYPES[@]} -eq 0 ]]; then
     MIC_TYPES=("sdm")
@@ -30,29 +31,29 @@ process_cutset() {
     local mic_type="$1"
     local split="$2"
     local suffix="$3"
-    
+
     echo "Processing NOTSOFAR1 $mic_type $split split..."
-    
+
     # Create cutset from recordings and supervisions
     python3 "$DATA_SCRIPTS_PATH/create_cutset.py" \
-        --input_recset "$MANIFESTS_DIR/notsofar1-${mic_type}_recordings_${split}${suffix}.jsonl.gz" \
-        --input_supset "$MANIFESTS_DIR/notsofar1-${mic_type}_supervisions_${split}${suffix}.jsonl.gz" \
-        --output "$MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}_tmp.jsonl.gz"
-    
+        --input_recset "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_recordings_${split}${suffix}.jsonl.gz" \
+        --input_supset "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_supervisions_${split}${suffix}.jsonl.gz" \
+        --output "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}_tmp.jsonl.gz"
+
     # Add session prefix to IDs
     python3 "$DATA_SCRIPTS_PATH/add_prefix.py" \
-        --input_manifest "$MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}_tmp.jsonl.gz" \
-        --output_manifest "$MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}.jsonl.gz" \
+        --input_manifest "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}_tmp.jsonl.gz" \
+        --output_manifest "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}.jsonl.gz" \
         --prefix "$mic_type"
-    
+
     # Clean up temporary files
-    rm "$MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}_tmp.jsonl.gz"
-    rm "$MANIFESTS_DIR/notsofar1-${mic_type}_supervisions_${split}${suffix}.jsonl.gz"
-    
+    rm "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}_tmp.jsonl.gz"
+    rm "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_supervisions_${split}${suffix}.jsonl.gz"
+
     # Extract supervisions from cutset
     python3 "$DATA_SCRIPTS_PATH/extract_supervisions.py" \
-        --cutset_path "$MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}.jsonl.gz" \
-        --output_path "$MANIFESTS_DIR/notsofar1-${mic_type}_supervisions_${split}${suffix}.jsonl.gz"
+        --cutset_path "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}.jsonl.gz" \
+        --output_path "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_supervisions_${split}${suffix}.jsonl.gz"
 }
 
 # Process each microphone type
@@ -78,7 +79,7 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
     esac
 
     # Prepare manifests
-    chime-utils lhotse-prep notsofar1 -d "$DATASET_PARTS" --txt-norm none -m "$MIC_TYPE" "$DATA_DIR/notsofar" "$MANIFESTS_DIR"
+    chime-utils lhotse-prep notsofar1 -d "$DATASET_PARTS" --txt-norm none -m "$MIC_TYPE" "$DATA_DIR/notsofar" "$NOTSOFAR_MANIFESTS_DIR"
 
     # Process cutsets for all splits
     for split in "${SPLITS[@]}"; do
@@ -95,9 +96,9 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
     fi
 
     echo "Preparing windowed cuts for Whisper training..."
-    python3 "$DATA_SCRIPTS_PATH/pre_segment_using_alignments.py" \
-        --input "$MANIFESTS_DIR/${manifest_prefix}_cutset_train${train_split_suffix}.jsonl.gz" \
-        --output "$MANIFESTS_DIR/${manifest_prefix}_cutset_train${train_split_suffix}_30s.jsonl.gz" \
+    python "$DATA_SCRIPTS_PATH/pre_segment_using_alignments.py" \
+        --input "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_cutset_train${train_split_suffix}.jsonl.gz" \
+        --output "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_cutset_train${train_split_suffix}_30s.jsonl.gz" \
         --max_len 30
 
     echo "NOTSOFAR1 $MIC_TYPE dataset preparation completed"

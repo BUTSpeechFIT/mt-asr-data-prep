@@ -10,7 +10,7 @@ readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 
 # Available datasets categorized by microphone type
-readonly SINGLE_MIC_DATASETS=("librimix" "librispeechmix" "ami-sdm" "ami-ihm-mix" "notsofar1-sdm")
+readonly SINGLE_MIC_DATASETS=("librispeech" "librimix" "librispeechmix" "ami-sdm" "ami-ihm-mix" "notsofar1-sdm")
 readonly MULTI_MIC_DATASETS=("ami-mdm" "ali_meeting" "aishell4" "chime6" "notsofar1-mdm")
 
 # Default configuration
@@ -103,7 +103,7 @@ determine_datasets() {
     local -a multi_mic_datasets=()
     local -a requested_datasets=()
     local dataset
-    
+
     if [[ "$DATASETS" == "all" ]]; then
         if [[ "$MULTI_MIC_ONLY" != true ]]; then
             single_mic_datasets=("${SINGLE_MIC_DATASETS[@]}")
@@ -115,7 +115,7 @@ determine_datasets() {
         IFS=',' read -ra requested_datasets <<< "$DATASETS"
         for dataset in "${requested_datasets[@]}"; do
             dataset="$(echo "$dataset" | xargs)"  # trim whitespace
-            
+
             # Check if it's a single-mic dataset
             if [[ " ${SINGLE_MIC_DATASETS[*]} " =~ " ${dataset} " ]]; then
                 if [[ "$MULTI_MIC_ONLY" != true ]]; then
@@ -133,7 +133,7 @@ determine_datasets() {
             fi
         done
     fi
-    
+
     # Export arrays for use in other functions
     export SINGLE_MIC_TO_PROCESS="${single_mic_datasets[*]}"
     export MULTI_MIC_TO_PROCESS="${multi_mic_datasets[*]}"
@@ -142,17 +142,17 @@ determine_datasets() {
 # Build script arguments
 build_script_args() {
     local args=()
-    
+
     args+=("--root-dir" "$ROOT_DIR")
-    
+
     if [[ "$EXTRACT_SUPERVISIONS" == true ]]; then
         args+=("--supervisions")
     fi
-    
+
     if [[ "$VERBOSE" == true ]]; then
         args+=("--verbose")
     fi
-    
+
     echo "${args[@]}"
 }
 
@@ -160,10 +160,10 @@ build_script_args() {
 main() {
     parse_arguments "$@"
     determine_datasets
-    
+
     local script_args
     script_args=($(build_script_args))
-    
+
     # Process single-mic datasets if any
     if [[ -n "$SINGLE_MIC_TO_PROCESS" ]]; then
         log_info "Processing single-microphone datasets: $SINGLE_MIC_TO_PROCESS"
@@ -174,7 +174,7 @@ main() {
             exit 1
         }
     fi
-    
+
     # Process multi-mic datasets if any
     if [[ -n "$MULTI_MIC_TO_PROCESS" ]]; then
         log_info "Processing multi-microphone datasets: $MULTI_MIC_TO_PROCESS"
@@ -185,7 +185,7 @@ main() {
             exit 1
         }
     fi
-    
+
     log_info "All dataset preparation completed successfully"
 }
 
@@ -193,4 +193,3 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
-
