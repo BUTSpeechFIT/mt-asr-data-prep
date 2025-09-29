@@ -1,2 +1,2 @@
 chime-utils @ git+https://github.com/Lakoc/chime-utils
-lhotse @ git+https://github.com/Lakoc/lhotse
+lhotse @ git+https://github.com/Lakoc/lhotse.git@merged
