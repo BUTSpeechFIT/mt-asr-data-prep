@@ -1,4 +1,5 @@
 import argparse
+
 import lhotse
 
 
@@ -8,10 +9,10 @@ def main(input_cutset_path: str, output_path: str):
     supset.to_file(output_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cutset_path', type=str, required=True)
-    parser.add_argument('--output_path', type=str, required=True)
+    parser.add_argument("--cutset_path", type=str, required=True)
+    parser.add_argument("--output_path", type=str, required=True)
 
     args = parser.parse_args()
 

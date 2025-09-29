@@ -12,7 +12,7 @@ readonly DATASET_SCRIPTS_DIR="$SCRIPT_DIR/dataset_scripts"
 
 # Available multi-mic datasets
 readonly AVAILABLE_DATASETS=(
-    "ami-mdm" "ali_meeting" "aishell4" "chime6" "notsofar1-mdm"
+    "ami-mdm" "notsofar1-mdm"
 )
 
 # Default configuration
@@ -220,9 +220,6 @@ extract_supervisions() {
     declare -A mc_files=(
         ["ami-mdm_supervisions_test.jsonl.gz"]="ami-mdm.jsonl.gz"
         ["notsofar1-mdm_supervisions_eval.jsonl.gz"]="notsofar1-small-mdm.jsonl.gz"
-        ["chime6-mdm_supervisions_eval.jsonl.gz"]="chime6-mdm.jsonl.gz"
-        ["alimeeting-far_supervisions_test.jsonl.gz"]="alimeeting.jsonl.gz"
-        ["aishell4_supervisions_test.jsonl.gz"]="aishell4.jsonl.gz"
     )
 
     # Process multi-channel supervisions
