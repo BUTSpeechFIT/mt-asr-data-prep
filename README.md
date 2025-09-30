@@ -1,6 +1,6 @@
 # Unified Data Preparation for Multi-Talker ASR  
 
-![Banner](./banner.png)
+![Banner](./misc/banner.png)
 
 > **One repo. One command. Ready-to-train datasets for multi-talker ASR.**  
 > Streamline data prep with reproducible manifests, benchmark-ready cutsets, and automatic dependency handling — all aligned with **BUT-FIT DiCoW** models.

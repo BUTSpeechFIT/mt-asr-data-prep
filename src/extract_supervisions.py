@@ -3,7 +3,7 @@ import argparse
 import lhotse
 
 
-def main(input_cutset_path: str, output_path: str):
+def main(input_cutset_path: str, output_path: str) -> None:
     cutset = lhotse.load_manifest(input_cutset_path)
     supset = cutset.decompose()[1]
     supset.to_file(output_path)

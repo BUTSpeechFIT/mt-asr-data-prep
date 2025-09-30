@@ -135,8 +135,8 @@ determine_datasets() {
     fi
 
     # Export arrays for use in other functions
-    export SINGLE_MIC_TO_PROCESS="${single_mic_datasets[*]}"
-    export MULTI_MIC_TO_PROCESS="${multi_mic_datasets[*]}"
+    export SINGLE_MIC_TO_PROCESS="${single_mic_datasets[*]-}"
+    export MULTI_MIC_TO_PROCESS="${multi_mic_datasets[*]-}"
 }
 
 # Build script arguments
