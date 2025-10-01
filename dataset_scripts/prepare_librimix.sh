@@ -29,7 +29,7 @@ if [[ ! -f "$WHAM_MANIFESTS_DIR/wham_recordings_tr.jsonl.gz" ]]; then
 fi
 
 # Download LibriMix metadata if not present
-if [[ ! -d "$DATA_DIR/LibriMix" ]]; then
+if [[ ! -d "$DATA_DIR/LibriMix/metadata" ]]; then
     echo "Downloading LibriMix metadata..."
     lhotse download librimix "$DATA_DIR/LibriMix"
 fi
