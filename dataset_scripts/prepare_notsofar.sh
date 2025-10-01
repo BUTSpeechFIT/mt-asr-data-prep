@@ -13,7 +13,8 @@ shift 3
 MIC_TYPES=("$@")
 
 NOTSOFAR_MANIFESTS_DIR="${MANIFESTS_DIR}/notsofar1"
-SPLITS=("train_set_240825.1_train" "dev_set_240825.1_dev1" "eval_set_240629.1_eval_small_with_GT")
+VERSIONS=("240825.1_train" "240825.1_dev1" "240629.1_eval_small_with_GT")
+SPLITS=("train_set_${VERSIONS[0]}" "dev_set_${VERSIONS[1]}" "eval_set_${VERSIONS[2]}")
 
 # Default to sdm if no mic types specified
 if [[ ${#MIC_TYPES[@]} -eq 0 ]]; then
@@ -23,11 +24,11 @@ fi
 echo "Preparing NOTSOFAR1 dataset for microphone types: ${MIC_TYPES[*]}"
 
 # Download and prepare NOTSOFAR1 data once (if not already done)
-if [[ ! -d "$DATA_DIR/nsf" ]]; then
-    echo "Downloading NOTSOFAR1 data..."
+# if [[ ! -d "$DATA_DIR/nsf" ]]; then - this IF does not make sense if we're downloading to the same directory.
+echo "Downloading NOTSOFAR1 data (if not done already)..."
     # chime-utils dgen notsofar1 "$DATA_DIR/nsf" "$DATA_DIR/notsofar" --part="train,dev,eval" --download --txt-norm none
-    lhotse download notsofar1 -p train -p dev -p test --mic $MIC_TYPES --train-version "${SPLITS[0]}" --dev-version "${SPLITS[1]}" --test-version "${SPLITS[2]}" "$DATA_DIR/nsf"
-fi
+lhotse download notsofar1 -p train -p dev -p test --mic $MIC_TYPES --train-version "${VERSIONS[0]}" --dev-version "${VERSIONS[1]}" --test-version "${VERSIONS[2]}" "$DATA_DIR/nsf"
+# fi
 
 # Function to process cutset for a given mic type and split
 process_cutset() {

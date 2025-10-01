@@ -10,8 +10,10 @@ readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 
 # Available datasets categorized by microphone type
-readonly SINGLE_MIC_DATASETS=("librispeech" "librimix" "librispeechmix" "ami-sdm" "ami-ihm-mix" "notsofar1-sdm")
-readonly MULTI_MIC_DATASETS=("ami-mdm" "ali_meeting" "aishell4" "chime6" "notsofar1-mdm")
+# readonly SINGLE_MIC_DATASETS=("librispeech" "librimix" "librispeechmix" "ami-sdm" "ami-ihm-mix" "notsofar1-sdm")
+readonly SINGLE_MIC_DATASETS=("librispeech" "librimix" "librispeechmix" "ami-sdm" "notsofar1-sdm")
+# readonly MULTI_MIC_DATASETS=("ami-mdm" "ali_meeting" "aishell4" "chime6" "notsofar1-mdm")
+readonly MULTI_MIC_DATASETS=("ami-mdm" "notsofar1-mdm")
 
 # Default configuration
 DATASETS="all"
