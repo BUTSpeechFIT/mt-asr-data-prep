@@ -21,21 +21,14 @@ if [[ ${#MIC_TYPES[@]} -eq 0 ]]; then
     MIC_TYPES=("sdm")
 fi
 
-echo "Preparing NOTSOFAR1 dataset for microphone types: ${MIC_TYPES[*]}"
-
-# Download and prepare NOTSOFAR1 data once (if not already done)
-# if [[ ! -d "$DATA_DIR/nsf" ]]; then - this IF does not make sense if we're downloading to the same directory.
-echo "Downloading NOTSOFAR1 data (if not done already)..."
-    # chime-utils dgen notsofar1 "$DATA_DIR/nsf" "$DATA_DIR/notsofar" --part="train,dev,eval" --download --txt-norm none
-lhotse download notsofar1 -p train -p dev -p test --mic $MIC_TYPES --train-version "${VERSIONS[0]}" --dev-version "${VERSIONS[1]}" --test-version "${VERSIONS[2]}" "$DATA_DIR/nsf"
-# fi
+echo "Preparing NOTSOFAR-1 dataset for microphone types: ${MIC_TYPES[*]}"
 
 # Function to process cutset for a given mic type and split
 process_cutset() {
     local mic_type="$1"
     local split="$2"
 
-    echo "Processing NOTSOFAR1 $mic_type $split split..."
+    echo "Processing NOTSOFAR-1 $mic_type $split split..."
 
     # Create cutset from recordings and supervisions
     python "$DATA_SCRIPTS_PATH/create_cutset.py" \
@@ -61,10 +54,21 @@ process_cutset() {
 
 # Process each microphone type
 for MIC_TYPE in "${MIC_TYPES[@]}"; do
-    echo "Processing NOTSOFAR1 $MIC_TYPE..."
+    # Download and prepare NOTSOFAR1 data once (if not already done)
+    if [[ ! -d "$DATA_DIR/nsf/${MIC_TYPE}" ]]; then
+        echo "Downloading NOTSOFAR-1 $MIC_TYPE data..."
+        lhotse download notsofar1 \
+            -p train -p dev -p test \
+            --mic $MIC_TYPES \
+            --train-version "${VERSIONS[0]}" \
+            --dev-version "${VERSIONS[1]}" \
+            --test-version "${VERSIONS[2]}" \
+            "$DATA_DIR/nsf/${MIC_TYPE}"
+    fi
+    echo "Processing NOTSOFAR-1 $MIC_TYPE..."
 
     # Prepare manifests
-    lhotse prepare notsofar1 "$DATA_DIR/nsf" "$NOTSOFAR_MANIFESTS_DIR"
+    lhotse prepare notsofar1 "$DATA_DIR/nsf/${MIC_TYPE}" "$NOTSOFAR_MANIFESTS_DIR"
 
     # Process cutsets for all splits
     for split in "${SPLITS[@]}"; do
@@ -83,7 +87,7 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
         --output "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset_30s.jsonl.gz" \
         --max_len 30
 
-    echo "NOTSOFAR1 $MIC_TYPE dataset preparation completed"
+    echo "NOTSOFAR-1 $MIC_TYPE dataset preparation completed"
 done
 
-echo "All NOTSOFAR1 dataset preparation completed"
+echo "All NOTSOFAR-1 dataset preparation completed"
