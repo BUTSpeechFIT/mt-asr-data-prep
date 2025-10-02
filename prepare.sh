@@ -11,7 +11,8 @@ readonly SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 
 # Available datasets categorized by microphone type
 readonly SINGLE_MIC_DATASETS=("librispeech" "librimix" "librispeechmix" "ami-sdm" "ami-ihm-mix" "notsofar1-sdm")
-readonly MULTI_MIC_DATASETS=("ami-mdm" "ali_meeting" "aishell4" "chime6" "notsofar1-mdm")
+# readonly MULTI_MIC_DATASETS=("ami-mdm" "ali_meeting" "aishell4" "chime6" "notsofar1-mdm") # Will be implemented later.
+readonly MULTI_MIC_DATASETS=("ami-mdm" "notsofar1-mdm")
 
 # Default configuration
 DATASETS="all"
@@ -135,8 +136,8 @@ determine_datasets() {
     fi
 
     # Export arrays for use in other functions
-    export SINGLE_MIC_TO_PROCESS="${single_mic_datasets[*]}"
-    export MULTI_MIC_TO_PROCESS="${multi_mic_datasets[*]}"
+    export SINGLE_MIC_TO_PROCESS="${single_mic_datasets[*]-}"
+    export MULTI_MIC_TO_PROCESS="${multi_mic_datasets[*]-}"
 }
 
 # Build script arguments

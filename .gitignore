@@ -30,3 +30,6 @@ venv.bak/
 .coverage
 htmlcov/
 .idea/
+.vscode/
+data/
+manifests/

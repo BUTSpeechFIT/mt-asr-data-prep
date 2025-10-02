@@ -245,7 +245,7 @@ extract_supervisions() {
             output_file="$DATA_DIR/refs_test_mc/$output_filename"
 
             log_debug "Converting: $input_file -> $output_file"
-            python3 "$DATA_SCRIPTS_PATH/supervision_to_hyp_json.py" \
+            python "$DATA_SCRIPTS_PATH/supervision_to_hyp_json.py" \
                 --input "$input_file" --output "$output_file"
         fi
     done

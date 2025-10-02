@@ -13,95 +13,81 @@ shift 3
 MIC_TYPES=("$@")
 
 NOTSOFAR_MANIFESTS_DIR="${MANIFESTS_DIR}/notsofar1"
+VERSIONS=("240825.1_train" "240825.1_dev1" "240629.1_eval_small_with_GT")
+SPLITS=("train_set_${VERSIONS[0]}" "dev_set_${VERSIONS[1]}" "eval_set_${VERSIONS[2]}")
+
 # Default to sdm if no mic types specified
 if [[ ${#MIC_TYPES[@]} -eq 0 ]]; then
     MIC_TYPES=("sdm")
 fi
 
-echo "Preparing NOTSOFAR1 dataset for microphone types: ${MIC_TYPES[*]}"
-
-# Download and prepare NOTSOFAR1 data once (if not already done)
-if [[ ! -d "$DATA_DIR/notsofar" ]]; then
-    echo "Downloading NOTSOFAR1 data..."
-    chime-utils dgen notsofar1 "$DATA_DIR/nsf" "$DATA_DIR/notsofar" --part="train,dev,eval" --download --txt-norm none
-fi
+echo "Preparing NOTSOFAR-1 dataset for microphone types: ${MIC_TYPES[*]}"
 
 # Function to process cutset for a given mic type and split
 process_cutset() {
     local mic_type="$1"
     local split="$2"
-    local suffix="$3"
 
-    echo "Processing NOTSOFAR1 $mic_type $split split..."
+    echo "Processing NOTSOFAR-1 $mic_type $split split..."
 
     # Create cutset from recordings and supervisions
-    python3 "$DATA_SCRIPTS_PATH/create_cutset.py" \
-        --input_recset "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_recordings_${split}${suffix}.jsonl.gz" \
-        --input_supset "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_supervisions_${split}${suffix}.jsonl.gz" \
-        --output "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}_tmp.jsonl.gz"
+    python "$DATA_SCRIPTS_PATH/create_cutset.py" \
+        --input_recset "$NOTSOFAR_MANIFESTS_DIR/notsofar1_${mic_type}_${split}_recordings.jsonl.gz" \
+        --input_supset "$NOTSOFAR_MANIFESTS_DIR/notsofar1_${mic_type}_${split}_supervisions.jsonl.gz" \
+        --output "$NOTSOFAR_MANIFESTS_DIR/notsofar1_${mic_type}_${split}_cutset_tmp.jsonl.gz"
 
     # Add session prefix to IDs
-    python3 "$DATA_SCRIPTS_PATH/add_prefix.py" \
-        --input_manifest "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}_tmp.jsonl.gz" \
-        --output_manifest "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}.jsonl.gz" \
+    python "$DATA_SCRIPTS_PATH/add_prefix.py" \
+        --input_manifest "$NOTSOFAR_MANIFESTS_DIR/notsofar1_${mic_type}_${split}_cutset_tmp.jsonl.gz" \
+        --output_manifest "$NOTSOFAR_MANIFESTS_DIR/notsofar1_${mic_type}_${split}_cutset.jsonl.gz" \
         --prefix "$mic_type"
 
     # Clean up temporary files
-    rm "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}_tmp.jsonl.gz"
-    rm "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_supervisions_${split}${suffix}.jsonl.gz"
+    rm "$NOTSOFAR_MANIFESTS_DIR/notsofar1_${mic_type}_${split}_cutset_tmp.jsonl.gz"
+    rm "$NOTSOFAR_MANIFESTS_DIR/notsofar1_${mic_type}_${split}_supervisions.jsonl.gz"
 
     # Extract supervisions from cutset
-    python3 "$DATA_SCRIPTS_PATH/extract_supervisions.py" \
-        --cutset_path "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_cutset_${split}${suffix}.jsonl.gz" \
-        --output_path "$NOTSOFAR_MANIFESTS_DIR/notsofar1-${mic_type}_supervisions_${split}${suffix}.jsonl.gz"
+    python "$DATA_SCRIPTS_PATH/extract_supervisions.py" \
+        --cutset_path "$NOTSOFAR_MANIFESTS_DIR/notsofar1_${mic_type}_${split}_cutset.jsonl.gz" \
+        --output_path "$NOTSOFAR_MANIFESTS_DIR/notsofar1_${mic_type}_${split}_supervisions.jsonl.gz"
 }
 
 # Process each microphone type
 for MIC_TYPE in "${MIC_TYPES[@]}"; do
-    echo "Processing NOTSOFAR1 $MIC_TYPE..."
-
-    # Validate mic type and set parameters
-    case "$MIC_TYPE" in
-        sdm)
-            DATASET_PARTS="train_sc,dev_sc,eval_sc"
-            SPLITS=("train_sc" "dev_sc" "eval_sc")
-            SUFFIX="_sc"
-            ;;
-        mdm)
-            DATASET_PARTS="train,dev,eval"
-            SPLITS=("train" "dev" "eval")
-            SUFFIX=""
-            ;;
-        *)
-            echo "Error: Invalid microphone type '$MIC_TYPE'. Supported: sdm, mdm"
-            exit 1
-            ;;
-    esac
+    # Download and prepare NOTSOFAR1 data once (if not already done)
+    if [[ ! -d "$DATA_DIR/nsf/${MIC_TYPE}" ]]; then
+        echo "Downloading NOTSOFAR-1 $MIC_TYPE data..."
+        lhotse download notsofar1 \
+            -p train -p dev -p test \
+            --mic $MIC_TYPES \
+            --train-version "${VERSIONS[0]}" \
+            --dev-version "${VERSIONS[1]}" \
+            --test-version "${VERSIONS[2]}" \
+            "$DATA_DIR/nsf/${MIC_TYPE}"
+    fi
+    echo "Processing NOTSOFAR-1 $MIC_TYPE..."
 
     # Prepare manifests
-    chime-utils lhotse-prep notsofar1 -d "$DATASET_PARTS" --txt-norm none -m "$MIC_TYPE" "$DATA_DIR/notsofar" "$NOTSOFAR_MANIFESTS_DIR"
+    lhotse prepare notsofar1 "$DATA_DIR/nsf/${MIC_TYPE}" "$NOTSOFAR_MANIFESTS_DIR"
 
     # Process cutsets for all splits
     for split in "${SPLITS[@]}"; do
         # Extract split name without suffix for processing
-        split_name="${split%${SUFFIX}}"
-        process_cutset "$MIC_TYPE" "$split_name" "$SUFFIX"
+        process_cutset "$MIC_TYPE" "$split"
     done
 
 #    # Apply pre-segmentation using alignments for train split
-    manifest_prefix="notsofar1-${MIC_TYPE}"
-    train_split_suffix=""
-    if [[ "$MIC_TYPE" == "sdm" ]]; then
-        train_split_suffix="_sc"
-    fi
+    manifest_prefix="notsofar1_${MIC_TYPE}"
+
+    echo "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset.jsonl.gz"
 
     echo "Preparing windowed cuts for Whisper training..."
     python "$DATA_SCRIPTS_PATH/pre_segment_using_alignments.py" \
-        --input "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_cutset_train${train_split_suffix}.jsonl.gz" \
-        --output "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_cutset_train${train_split_suffix}_30s.jsonl.gz" \
+        --input "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset.jsonl.gz" \
+        --output "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset_30s.jsonl.gz" \
         --max_len 30
 
-    echo "NOTSOFAR1 $MIC_TYPE dataset preparation completed"
+    echo "NOTSOFAR-1 $MIC_TYPE dataset preparation completed"
 done
 
-echo "All NOTSOFAR1 dataset preparation completed"
+echo "All NOTSOFAR-1 dataset preparation completed"

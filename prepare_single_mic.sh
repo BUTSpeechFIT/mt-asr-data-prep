@@ -15,11 +15,20 @@ readonly AVAILABLE_DATASETS=(
     "librispeech" "librimix" "librispeechmix" "ami-sdm" "ami-ihm-mix" "notsofar1-sdm"
 )
 
-# Dataset dependencies
-readonly -A DATASET_DEPENDENCIES=(
-    ["librimix"]="librispeech"
-    ["librispeechmix"]="librispeech"
-)
+# Dataset dependencies (bash 3 compatible)
+get_dataset_dependency() {
+    case "$1" in
+        librimix)
+            echo "librispeech"
+            ;;
+        librispeechmix)
+            echo "librispeech"
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
 
 # Default configuration
 DATASETS="all"
@@ -125,7 +134,7 @@ is_dataset_available() {
 # Check if dataset dependency is satisfied
 check_dependency() {
     local dataset="$1"
-    local dependency="${DATASET_DEPENDENCIES[$dataset]:-}"
+    local dependency="$(get_dataset_dependency "$dataset")"
 
     if [[ -n "$dependency" ]]; then
         local dep_manifest="$MANIFESTS_DIR/${dependency}/${dependency}_cutset_train-clean-100.jsonl.gz"
@@ -261,7 +270,7 @@ extract_supervisions() {
             output_file="$DATA_DIR/refs_test_sc/$output_filename"
 
             log_debug "Converting: $input_file -> $output_file"
-            python3 "$DATA_SCRIPTS_PATH/supervision_to_hyp_json.py" \
+            python "$DATA_SCRIPTS_PATH/supervision_to_hyp_json.py" \
                 --input "$input_file" --output "$output_file"
         fi
     done
@@ -286,15 +295,15 @@ prepare_datasets() {
         dataset="$(echo "$dataset" | xargs)"
 
         # Add dependency first if needed
-        if [[ -n "${DATASET_DEPENDENCIES[$dataset]:-}" ]]; then
-            local dep="${DATASET_DEPENDENCIES[$dataset]}"
-            if [[ ! " ${sorted_datasets[*]} " =~ " ${dep} " ]]; then
+        local dep="$(get_dataset_dependency "$dataset")"
+        if [[ -n "$dep" ]]; then
+            if [[ ! " ${sorted_datasets[*]-} " =~ " ${dep} " ]]; then
                 sorted_datasets+=("$dep")
             fi
         fi
 
         # Add the dataset itself
-        if [[ ! " ${sorted_datasets[*]} " =~ " ${dataset} " ]]; then
+        if [[ ! " ${sorted_datasets[*]-} " =~ " ${dataset} " ]]; then
             sorted_datasets+=("$dataset")
         fi
     done

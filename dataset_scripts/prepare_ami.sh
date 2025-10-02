@@ -34,10 +34,10 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
             ;;
     esac
 
-    if [[ ! -d "$DATA_DIR/ami" ]]; then
-      lhotse download ami --mic "$MIC_TYPE" "$DATA_DIR/ami"
+    if [[ ! -d "$DATA_DIR/ami/${MIC_TYPE}" ]]; then
+      lhotse download ami --mic "$MIC_TYPE" "$DATA_DIR/ami/${MIC_TYPE}"
     fi
-    lhotse prepare ami "$DATA_DIR/ami" "$AMI_MANIFESTS_DIR" --mic "$MIC_TYPE" --partition full-corpus-asr --normalize-text none --keep-punctuation
+    lhotse prepare ami --mic "$MIC_TYPE" --partition full-corpus-asr --normalize-text none --keep-punctuation "$DATA_DIR/ami/${MIC_TYPE}" "$AMI_MANIFESTS_DIR"
 
     manifest_prefix="ami-${MIC_TYPE}"
 

@@ -1,6 +1,6 @@
 # Unified Data Preparation for Multi-Talker ASR  
 
-![Banner](./banner.png)
+![Banner](./misc/banner.png)
 
 > **One repo. One command. Ready-to-train datasets for multi-talker ASR.**  
 > Streamline data prep with reproducible manifests, benchmark-ready cutsets, and automatic dependency handling — all aligned with **BUT-FIT DiCoW** models.
@@ -34,10 +34,15 @@ Official JSALT 2025 benchmark built directly on cutsets from this repo.
 ---
 
 ## ⚡ Quickstart
-**Requirements**: Python 3.9+, `lhotse`, `chime-utils`  
+**Requirements**: Python 3.9+, `lhotse`, `huggingface-hub` (only for NOTSOFAR-1)
 ```bash
 pip install -r requirements.txt
 ````
+If you are preparing NOTSOFAR-1 as well, you need to first setup a HuggingFace token ([Tutorial Link](https://huggingface.co/docs/hub/en/security-tokens)) and then export it in your environment:
+```bash
+export HF_TOKEN="{YOUR HF TOKEN}"
+```
+If the download fails, run the preparation of NOTSOFAR-1 dataset alone multiple times until the download succeeds: `./prepare -d notsofar1-sdm,notsofar1-mdm`.
 
 **Prepare selected datasets**:
 
