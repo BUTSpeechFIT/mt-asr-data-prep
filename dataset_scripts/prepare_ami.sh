@@ -37,7 +37,7 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
     if [[ ! -d "$DATA_DIR/ami/${MIC_TYPE}" ]]; then
       lhotse download ami --mic "$MIC_TYPE" "$DATA_DIR/ami/${MIC_TYPE}"
     fi
-    lhotse prepare ami --mic "$MIC_TYPE" --partition full-corpus-asr --normalize-text none "$DATA_DIR/ami/${MIC_TYPE}" "$AMI_MANIFESTS_DIR"
+    lhotse prepare ami --mic "$MIC_TYPE" --partition full-corpus-asr --normalize-text none --keep-punctuation "$DATA_DIR/ami/${MIC_TYPE}" "$AMI_MANIFESTS_DIR"
 
     manifest_prefix="ami-${MIC_TYPE}"
 
