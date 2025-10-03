@@ -1,3 +1,4 @@
 lhotse @ git+https://github.com/Lakoc/lhotse.git@merged
 huggingface-hub==0.35.3
+textgrid
 pre-commit

@@ -49,12 +49,12 @@ def filter_punctuation_alignments(cut: lhotse.cut.Cut) -> lhotse.cut.Cut:
     """
     new_sups: List[Any] = []
     for sup in cut.supervisions:
-        new_aligments = [
+        new_alignments = [
             word
             for word in sup.alignment[WORD_ALIGNMENT_KEY]
             if len(_normalize_word(word.symbol)) > 0
         ]
-        sup.alignment[WORD_ALIGNMENT_KEY] = new_aligments
+        sup.alignment[WORD_ALIGNMENT_KEY] = new_alignments
         new_sups.append(sup)
     cut.supervisions = new_sups
     return cut

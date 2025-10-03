@@ -12,7 +12,7 @@ readonly DATASET_SCRIPTS_DIR="$SCRIPT_DIR/dataset_scripts"
 
 # Available multi-mic datasets
 readonly AVAILABLE_DATASETS=(
-    "ami-mdm" "notsofar1-mdm"
+    "aishell4" "ali_meeting-mdm" "ami-mdm" "notsofar1-mdm"
 )
 
 # Default configuration
