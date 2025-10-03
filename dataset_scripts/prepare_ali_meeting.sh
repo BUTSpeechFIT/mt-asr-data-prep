@@ -39,10 +39,10 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
     fi
     lhotse prepare ali-meeting --mic "$MIC_TYPE" --normalize-text none "$DATA_DIR/ali_meeting" "$ALI_MEETING_MANIFESTS_DIR"
 
-    manifest_prefix="ali_meeting-${MIC_TYPE}"
+    manifest_prefix="alimeeting-${MIC_TYPE}"
 
     # Process each split
-    for split in train dev test; do
+    for split in train test eval; do
         echo "Processing AliMeeting $MIC_TYPE $split split..."
 
         # Create cutset from recordings and supervisions

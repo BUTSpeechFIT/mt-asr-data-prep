@@ -167,8 +167,8 @@ prepare_dataset() {
             return 1
         fi
     elif [[ "$dataset" == "ali_meeting-sdm" ]]; then
-        log_info "Preparing NotSoFar1 SDM dataset"
-        log_debug "Running NotSoFar script with mic type: sdm"
+        log_info "Preparing AliMeeting SDM dataset"
+        log_debug "Running AliMeeting script with mic type: sdm"
 
         if bash "$DATASET_SCRIPTS_DIR/prepare_ali_meeting.sh" "$DATA_DIR" "$MANIFESTS_DIR" "$DATA_SCRIPTS_PATH" "sdm"; then
             log_info "Completed dataset: $dataset"

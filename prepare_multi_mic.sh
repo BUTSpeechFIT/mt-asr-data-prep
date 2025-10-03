@@ -160,6 +160,16 @@ prepare_dataset() {
             log_error "Failed to prepare dataset: $dataset"
             return 1
         fi
+    elif [[ "$dataset" == "ali_meeting-mdm" ]]; then
+        log_info "Preparing AliMeeting MDM dataset"
+        log_debug "Running AliMeeting script with mic type: mdm"
+
+        if bash "$DATASET_SCRIPTS_DIR/prepare_ali_meeting.sh" "$DATA_DIR" "$MANIFESTS_DIR" "$DATA_SCRIPTS_PATH" "mdm"; then
+            log_info "Completed dataset: $dataset"
+        else
+            log_error "Failed to prepare dataset: $dataset"
+            return 1
+        fi
     # Handle NotSoFar1 MDM dataset specially
     elif [[ "$dataset" == "notsofar1-mdm" ]]; then
         log_info "Preparing NotSoFar1 MDM dataset"
