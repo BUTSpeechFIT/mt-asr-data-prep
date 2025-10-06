@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Generic AISHELL-4 dataset preparation script
-# Usage: prepare_ali_meeting.sh DATA_DIR MANIFESTS_DIR DATA_SCRIPTS_PATH [MIC_TYPES...]
+# Usage: prepare_aishell4.sh DATA_DIR MANIFESTS_DIR DATA_SCRIPTS_PATH [MIC_TYPES...]
 
 set -euo pipefail
 

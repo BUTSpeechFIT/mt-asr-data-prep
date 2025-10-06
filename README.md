@@ -74,7 +74,7 @@ If the download fails, run the preparation of NOTSOFAR-1 dataset alone multiple 
 ---
 
 ## 💬 Contact
-If you have further questions or interest in our other work, contact us: [ipoloka@fit.vut.cz](mailto:ipoloka@fit.vut.cz), [iklement@fit.vutbr.cz](mailto:xkleme15@vutbr.cz).
+If you have further questions or interest in our other work, contact us: [ipoloka@fit.vut.cz](mailto:ipoloka@fit.vut.cz), [iklement@fit.vutbr.cz](mailto:iklement@fit.vutbr.cz).
 
 ---
 

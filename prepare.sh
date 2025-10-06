@@ -105,8 +105,6 @@ determine_datasets() {
     local -a requested_datasets=()
     local dataset
 
-    echo "$DATASETS"
-
     if [[ "$DATASETS" == "all" ]]; then
         if [[ "$MULTI_MIC_ONLY" != true ]]; then
             single_mic_datasets=("${SINGLE_MIC_DATASETS[@]}")
