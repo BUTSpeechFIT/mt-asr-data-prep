@@ -28,13 +28,13 @@ Official JSALT 2025 benchmark built directly on cutsets from this repo.
 ---
 
 ## 📚 Supported Datasets
-**Single-mic**: `librispeech`, `librimix`, `librispeechmix`, `ami-sdm`, `ami-ihm-mix`, `notsofar1-sdm`  
-**Multi-mic**: `ami-mdm`, `notsofar1-mdm`  
+**Single-mic**: `librispeech`, `librimix`, `librispeechmix`, `ali_meeting-sdm`, `ami-sdm`, `ami-ihm-mix`, `notsofar1-sdm`  
+**Multi-mic**: `aishell4`, `ali_meeting-mdm`, `ami-mdm`, `notsofar1-mdm` 
 
 ---
 
 ## ⚡ Quickstart
-**Requirements**: Python 3.9+, `lhotse`, `huggingface-hub` (only for NOTSOFAR-1)
+**Requirements**: Python 3.9+, `lhotse`, `huggingface-hub` (only for NOTSOFAR-1), `sox` (AliMeeting)
 ```bash
 pip install -r requirements.txt
 ````
@@ -70,6 +70,11 @@ If the download fails, run the preparation of NOTSOFAR-1 dataset alone multiple 
 * Orchestration scripts → `prepare.sh`, `prepare_single_mic.sh`, `prepare_multi_mic.sh`
 * Dataset runners → `dataset_scripts/prepare_*.sh`
 * Utilities → `src/*.py`
+
+---
+
+## 💬 Contact
+If you have further questions or interest in our other work, contact us: [ipoloka@fit.vut.cz](mailto:ipoloka@fit.vut.cz), [iklement@fit.vutbr.cz](mailto:iklement@fit.vutbr.cz).
 
 ---
 

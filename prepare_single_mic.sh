@@ -10,9 +10,8 @@ readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 readonly DATASET_SCRIPTS_DIR="$SCRIPT_DIR/dataset_scripts"
 
-# Available single-mic datasets
 readonly AVAILABLE_DATASETS=(
-    "librispeech" "librimix" "librispeechmix" "ami-sdm" "ami-ihm-mix" "notsofar1-sdm"
+    "librispeech" "librimix" "librispeechmix" "ali_meeting-sdm" "ami-sdm" "ami-ihm-mix" "notsofar1-sdm"
 )
 
 # Dataset dependencies (bash 3 compatible)
@@ -162,6 +161,16 @@ prepare_dataset() {
         log_debug "Running AMI script with mic type: $mic_type"
 
         if bash "$DATASET_SCRIPTS_DIR/prepare_ami.sh" "$DATA_DIR" "$MANIFESTS_DIR" "$DATA_SCRIPTS_PATH" "$mic_type"; then
+            log_info "Completed dataset: $dataset"
+        else
+            log_error "Failed to prepare dataset: $dataset"
+            return 1
+        fi
+    elif [[ "$dataset" == "ali_meeting-sdm" ]]; then
+        log_info "Preparing AliMeeting SDM dataset"
+        log_debug "Running AliMeeting script with mic type: sdm"
+
+        if bash "$DATASET_SCRIPTS_DIR/prepare_ali_meeting.sh" "$DATA_DIR" "$MANIFESTS_DIR" "$DATA_SCRIPTS_PATH" "sdm"; then
             log_info "Completed dataset: $dataset"
         else
             log_error "Failed to prepare dataset: $dataset"
