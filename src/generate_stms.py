@@ -39,7 +39,7 @@ def to_iterable_channels(ch):
     return [ch]
 
 
-def supervision_to_stm(sups: SupervisionSet):
+def supervision_set_to_stm(sups: SupervisionSet):
     """Convert one SupervisionSet to STM lines."""
     rows = []
     for sup in sups:
@@ -87,7 +87,7 @@ def convert_all(root_dir: Path, output_dir: Optional[Path] = None):
         logger.info(f"Processing {dataset_dir}/{manifest_path.name} -> {stm_path}")
 
         sups = SupervisionSet.from_file(manifest_path)
-        stm_lines = supervision_to_stm(sups)
+        stm_lines = supervision_set_to_stm(sups)
 
         with open(stm_path, "w", encoding="utf-8") as f:
             f.write("\n".join(stm_lines) + "\n")
