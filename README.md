@@ -38,11 +38,17 @@ Official JSALT 2025 benchmark built directly on cutsets from this repo.
 ```bash
 pip install -r requirements.txt
 ````
-If you are preparing NOTSOFAR-1 as well, you need to first setup a HuggingFace token ([Tutorial Link](https://huggingface.co/docs/hub/en/security-tokens)) and then export it in your environment:
+If you are preparing NOTSOFAR-1, you need to first gain access to the HuggingFace dataset through [this link](https://huggingface.co/datasets/microsoft/NOTSOFAR). Then, setup a HuggingFace token ([Tutorial Link](https://huggingface.co/docs/hub/en/security-tokens)) and run the command below:
 ```bash
 export HF_TOKEN="{YOUR HF TOKEN}"
 ```
-If the download fails, run the preparation of NOTSOFAR-1 dataset alone multiple times until the download succeeds: `./prepare -d notsofar1-sdm,notsofar1-mdm`.
+
+**Prepare all datasets**:
+
+```bash
+./prepare.sh --root-dir /path/to/workdir
+```
+If the NOTSOFAR-1 download fails due to an API request limit, run the preparation of NOTSOFAR-1 dataset multiple times until it succeeds: `./prepare -d notsofar1-sdm,notsofar1-mdm`.
 
 **Prepare selected datasets**:
 
