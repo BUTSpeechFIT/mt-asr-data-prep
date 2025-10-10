@@ -42,6 +42,7 @@ Options:
   -s, --supervisions         Extract supervisions to JSON files
   --single-mic-only          Process only single-microphone datasets
   --multi-mic-only           Process only multi-microphone datasets
+  --with-stms                Also generate STM files from supervision manifests
   -v, --verbose              Enable verbose logging
   -h, --help                 Show this help message
 
@@ -81,6 +82,10 @@ parse_arguments() {
                 MULTI_MIC_ONLY=true
                 shift
                 ;;
+            --with-stms)
+              WITH_STMS=true
+              shift
+              ;;
             -v|--verbose)
                 VERBOSE=true
                 shift
@@ -185,6 +190,16 @@ main() {
             log_error "Multi-mic dataset preparation failed"
             exit 1
         }
+    fi
+
+    # Generate STM files if requested
+    if [[ "$WITH_STMS" == true ]]; then
+        log_info "Generating STM files..."
+        if [[ -f "src/generate_stms.py" ]]; then
+            python "src/generate_stms.py" "$ROOT_DIR"
+        else
+            log_error "STM generation script not found: src/generate_stms.py"
+        fi
     fi
 
     log_info "All dataset preparation completed successfully"
