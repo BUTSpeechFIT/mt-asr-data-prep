@@ -64,13 +64,16 @@ def convert_all(root_dir: Path, output_dir: Optional[Path] = None):
     stm_root = output_dir or (root_dir / "stms")
     stm_root.mkdir(parents=True, exist_ok=True)
 
-    manifest_files = sorted(manifests_dir.glob("*/*_supervisions_*.jsonl.gz"))
+    manifest_files = sorted(manifests_dir.glob("*/*supervisions*.jsonl.gz"))
     if not manifest_files:
         logger.error("No supervision manifests found.")
         return
 
     for manifest_path in manifest_files:
-        match = re.match(r"^(?P<prefix>.+?)_supervisions_(?P<suffix>.+)\.jsonl\.gz$", manifest_path.name)
+        match = re.match(
+            r"^(?P<prefix>.+?)_supervisions(?:_(?P<suffix>.+))?\.jsonl\.gz$",
+            manifest_path.name,
+        )
         if not match:
             logger.warning(f"Skipping file with unexpected name: {manifest_path.name}")
             continue
@@ -79,10 +82,16 @@ def convert_all(root_dir: Path, output_dir: Optional[Path] = None):
         suffix = match.group("suffix")   # e.g. "train", "train_L"
 
         dataset_dir = manifest_path.parent.name  # e.g. "ami"
+
         stm_dir = stm_root / dataset_dir
         stm_dir.mkdir(parents=True, exist_ok=True)
 
-        stm_path = stm_dir / f"{prefix}_{suffix}.stm"
+        if suffix:
+            stm_filename = f"{prefix}_{suffix}.stm"
+        else:
+            stm_filename = f"{prefix}.stm"
+
+        stm_path = stm_dir / stm_filename
 
         logger.info(f"Processing {dataset_dir}/{manifest_path.name} -> {stm_path}")
 
