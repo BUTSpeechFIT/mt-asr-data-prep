@@ -37,4 +37,12 @@ lhotse prepare librispeechmix \
     --num-jobs 4
 
 
+# Download prepared librispeechmix-like training set
+echo "Downloading prepared LibriSpeechMix-like training set."
+curl -L -o "$LIBRISPEECHMIX_MANIFESTS_DIR/librispeechmix3_download.jsonl.gz" https://nextcloud.fit.vutbr.cz/public.php/dav/files/ddRxWNZJ4Aw6gwy/?accept=zip
+python "$DATA_SCRIPTS_PATH/change_sources_prefix.py" --input_manifest "$LIBRISPEECHMIX_MANIFESTS_DIR/librispeechmix3_download.jsonl.gz" --output_manifest "$LIBRISPEECHMIX_MANIFESTS_DIR/librispeechmix_custom_cutset_train-3mix.jsonl.gz" --orig_prefix PREFIX/ --new_prefix $DATA_DIR/
+
+# Alternatively create custom simulated mixtures
+#python "$DATA_SCRIPTS_PATH/create_synthetic_ls_mixtures.py" --input_manifests "$LIBRISPEECH_MANIFESTS_DIR/librispeech_cutset_train-clean-100.jsonl.gz"  "$LIBRISPEECH_MANIFESTS_DIR/librispeech_cutset_train-clean-360.jsonl.gz" "$LIBRISPEECH_MANIFESTS_DIR/librispeech_cutset_train-other-500.jsonl.gz"  --output_manifest "$LIBRISPEECHMIX_MANIFESTS_DIR/librispeechmix_custom_cutset_train-3mix_.jsonl.gz"
+
 echo "LibriSpeechMix dataset preparation completed."
