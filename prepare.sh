@@ -21,6 +21,7 @@ ROOT_DIR="$(pwd)"
 VERBOSE=false
 SINGLE_MIC_ONLY=false
 MULTI_MIC_ONLY=false
+WITH_STMS=false
 
 # Logging functions
 log_info() {
