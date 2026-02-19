@@ -81,11 +81,20 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
 
     echo "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset.jsonl.gz"
 
-    echo "Preparing windowed cuts for Whisper training..."
-    python "$DATA_SCRIPTS_PATH/pre_segment_using_alignments.py" \
-        --input "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset.jsonl.gz" \
-        --output "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset_30s.jsonl.gz" \
-        --max_len 30
+    if [[ "$MIC_TYPE" == "ihm" ]]; then
+        echo "Trimming IHM cuts to supervisions..."
+        lhotse cut trim-to-supervisions --discard-overlapping \
+            "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset.jsonl.gz" \
+            "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset_per_seg.jsonl.gz"
+    fi
+
+    if [[ "$MIC_TYPE" != "ihm" ]]; then
+      echo "Preparing windowed cuts for Whisper training..."
+      python "$DATA_SCRIPTS_PATH/pre_segment_using_alignments.py" \
+          --input "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset.jsonl.gz" \
+          --output "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset_30s.jsonl.gz" \
+          --max_len 30
+    fi
 
     echo "NOTSOFAR-1 $MIC_TYPE dataset preparation completed"
 done

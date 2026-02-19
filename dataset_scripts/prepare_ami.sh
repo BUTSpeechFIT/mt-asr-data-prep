@@ -24,12 +24,12 @@ echo "Preparing AMI dataset for microphone types: ${MIC_TYPES[*]}"
 for MIC_TYPE in "${MIC_TYPES[@]}"; do
     echo "Processing AMI $MIC_TYPE..."
 
-    # Validate mic type
+    # Validate mic type (Added 'ihm' to supported types)
     case "$MIC_TYPE" in
-        sdm|mdm|ihm-mix)
+        sdm|mdm|ihm-mix|ihm)
             ;;
         *)
-            echo "Error: Invalid microphone type '$MIC_TYPE'. Supported: sdm, mdm, ihm-mix"
+            echo "Error: Invalid microphone type '$MIC_TYPE'. Supported: sdm, mdm, ihm-mix, ihm"
             exit 1
             ;;
     esac
@@ -37,7 +37,13 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
     if [[ ! -d "$DATA_DIR/ami/${MIC_TYPE}" ]]; then
       lhotse download ami --mic "$MIC_TYPE" "$DATA_DIR/ami/${MIC_TYPE}"
     fi
-    lhotse prepare ami --mic "$MIC_TYPE" --partition full-corpus-asr --normalize-text none --keep-punctuation "$DATA_DIR/ami/${MIC_TYPE}" "$AMI_MANIFESTS_DIR"
+
+    # Handle Lhotse prepare differences
+    if [[ "$MIC_TYPE" == "ihm" ]]; then
+        lhotse prepare ami --mic "$MIC_TYPE" --max-words-per-segment 30 --partition full-corpus-asr --normalize-text none --keep-punctuation "$DATA_DIR/ami/${MIC_TYPE}" "$AMI_MANIFESTS_DIR"
+    else
+        lhotse prepare ami --mic "$MIC_TYPE" --partition full-corpus-asr --normalize-text none --keep-punctuation "$DATA_DIR/ami/${MIC_TYPE}" "$AMI_MANIFESTS_DIR"
+    fi
 
     manifest_prefix="ami-${MIC_TYPE}"
 
@@ -45,32 +51,48 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
     for split in train dev test; do
         echo "Processing AMI $MIC_TYPE $split split..."
 
-        # Create cutset from recordings and supervisions
-        python "$DATA_SCRIPTS_PATH/create_cutset.py" \
-            --input_recset "$AMI_MANIFESTS_DIR/${manifest_prefix}_recordings_$split.jsonl.gz" \
-            --input_supset "$AMI_MANIFESTS_DIR/${manifest_prefix}_supervisions_$split.jsonl.gz" \
-            --output "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_${split}_tmp.jsonl.gz"
+        if [[ "$MIC_TYPE" == "ihm" ]]; then
+            # IHM specific cut processing
+            lhotse cut simple \
+                -r "$AMI_MANIFESTS_DIR/${manifest_prefix}_recordings_${split}.jsonl.gz" \
+                -s "$AMI_MANIFESTS_DIR/${manifest_prefix}_supervisions_${split}.jsonl.gz" \
+                "$AMI_MANIFESTS_DIR/cuts_${split}.jsonl.gz"
 
-        # Add session prefix to IDs
-        python "$DATA_SCRIPTS_PATH/add_prefix.py" \
-            --input_manifest "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_${split}_tmp.jsonl.gz" \
-            --output_manifest "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_${split}.jsonl.gz" \
-            --prefix "$MIC_TYPE"
+            lhotse cut trim-to-supervisions --discard-overlapping \
+                "$AMI_MANIFESTS_DIR/cuts_${split}.jsonl.gz" "$AMI_MANIFESTS_DIR/cuts_per_segment_${split}.jsonl.gz"
+        else
+            # Default cut processing for sdm, mdm, ihm-mix
+            # Create cutset from recordings and supervisions
+            python "$DATA_SCRIPTS_PATH/create_cutset.py" \
+                --input_recset "$AMI_MANIFESTS_DIR/${manifest_prefix}_recordings_$split.jsonl.gz" \
+                --input_supset "$AMI_MANIFESTS_DIR/${manifest_prefix}_supervisions_$split.jsonl.gz" \
+                --output "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_${split}_tmp.jsonl.gz"
 
-        # Clean up temporary files
-        rm "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_${split}_tmp.jsonl.gz"
-        rm "$AMI_MANIFESTS_DIR/${manifest_prefix}_supervisions_$split.jsonl.gz"
+            # Add session prefix to IDs
+            python "$DATA_SCRIPTS_PATH/add_prefix.py" \
+                --input_manifest "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_${split}_tmp.jsonl.gz" \
+                --output_manifest "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_${split}.jsonl.gz" \
+                --prefix "$MIC_TYPE"
 
-        # Extract supervisions from cutset
-        python "$DATA_SCRIPTS_PATH/extract_supervisions.py" \
-            --cutset_path "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_${split}.jsonl.gz" \
-            --output_path "$AMI_MANIFESTS_DIR/${manifest_prefix}_supervisions_${split}.jsonl.gz"
+            # Clean up temporary files
+            rm "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_${split}_tmp.jsonl.gz"
+            rm "$AMI_MANIFESTS_DIR/${manifest_prefix}_supervisions_$split.jsonl.gz"
+
+            # Extract supervisions from cutset
+            python "$DATA_SCRIPTS_PATH/extract_supervisions.py" \
+                --cutset_path "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_${split}.jsonl.gz" \
+                --output_path "$AMI_MANIFESTS_DIR/${manifest_prefix}_supervisions_${split}.jsonl.gz"
+        fi
     done
 
-    # Prepare windowed cuts for Whisper training
-    echo "Preparing windowed cuts for Whisper training..."
-
-    python "$DATA_SCRIPTS_PATH/pre_segment_using_alignments.py" --input "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_train.jsonl.gz" --output "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_train_30s.jsonl.gz" --max_len 30
+    # Prepare windowed cuts for Whisper training (Skipped for ihm)
+    if [[ "$MIC_TYPE" != "ihm" ]]; then
+        echo "Preparing windowed cuts for Whisper training..."
+        python "$DATA_SCRIPTS_PATH/pre_segment_using_alignments.py" \
+            --input "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_train.jsonl.gz" \
+            --output "$AMI_MANIFESTS_DIR/${manifest_prefix}_cutset_train_30s.jsonl.gz" \
+            --max_len 30
+    fi
 
     echo "AMI $MIC_TYPE dataset preparation completed."
 done

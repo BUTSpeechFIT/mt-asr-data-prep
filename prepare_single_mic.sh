@@ -11,7 +11,7 @@ readonly SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 readonly DATASET_SCRIPTS_DIR="$SCRIPT_DIR/dataset_scripts"
 
 readonly AVAILABLE_DATASETS=(
-    "librispeech" "librimix" "librispeechmix" "ali_meeting-sdm" "ami-sdm" "ami-ihm-mix" "notsofar1-sdm"
+    "librispeech" "librimix" "librispeechmix" "ali_meeting-sdm" "ami-sdm" "ami-ihm" "ami-ihm-mix" "notsofar1-sdm" "notsofar1-ihm" "voxpopuli"
 )
 
 # Dataset dependencies (bash 3 compatible)
@@ -182,6 +182,16 @@ prepare_dataset() {
         log_debug "Running NotSoFar script with mic type: sdm"
 
         if bash "$DATASET_SCRIPTS_DIR/prepare_notsofar.sh" "$DATA_DIR" "$MANIFESTS_DIR" "$DATA_SCRIPTS_PATH" "sdm"; then
+            log_info "Completed dataset: $dataset"
+        else
+            log_error "Failed to prepare dataset: $dataset"
+            return 1
+        fi
+    elif [[ "$dataset" == "notsofar1-ihm" ]]; then
+        log_info "Preparing NotSoFar1 IHM dataset"
+        log_debug "Running NotSoFar script with mic type: ihm"
+
+        if bash "$DATASET_SCRIPTS_DIR/prepare_notsofar.sh" "$DATA_DIR" "$MANIFESTS_DIR" "$DATA_SCRIPTS_PATH" "ihm"; then
             log_info "Completed dataset: $dataset"
         else
             log_error "Failed to prepare dataset: $dataset"
