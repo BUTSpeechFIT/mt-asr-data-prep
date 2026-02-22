@@ -1,68 +1,114 @@
 #!/bin/bash
-# oto_speech ASR dataset preparation script
-# Usage: prepare_oto_speech.sh DATA_DIR MANIFESTS_DIR DATA_SCRIPTS_PATH
-
-set -euo pipefail
+# VoxPopuli ASR dataset preparation script with MFA Forced Alignment
+# Usage: prepare_voxpopuli.sh DATA_DIR MANIFESTS_DIR DATA_SCRIPTS_PATH GDRIVE_FILE_ID
+#set -euo pipefail
 
 # Arguments
 DATA_DIR="$1"
 MANIFESTS_DIR="$2"
 DATA_SCRIPTS_PATH="$3"
+GDRIVE_FILE_ID=https://drive.google.com/file/d/1JQ2TxjPgodfYYCgkwtDtlcTzl9yRMarN/view?usp=sharing
 
-# Consistently using oto_speech!
-OTO_DATA_DIR="$DATA_DIR/oto_speech"
-OTO_MANIFESTS_DIR="$MANIFESTS_DIR/oto_speech"
+shift 4 || true
 
-echo "=== Preparing oto_speech dataset ==="
+SUBSET="asr"
+LANG="en"
+VOXPOPULI_MANIFESTS_DIR="$MANIFESTS_DIR/voxpopuli"
 
-mkdir -p "$OTO_DATA_DIR"
-mkdir -p "$OTO_MANIFESTS_DIR"
+echo "Preparing VoxPopuli dataset (Subset: $SUBSET) for language: $LANG"
+
+mkdir -p "$DATA_DIR/voxpopuli"
+mkdir -p "$VOXPOPULI_MANIFESTS_DIR"
 
 # ---------------------------------------------------------------------------
-# Step 1: Download oto_speech (Audio + Parakeet v3 Pseudo-Labels)
+# Step 1: Download and Extract MFA Alignments from Google Drive
 # ---------------------------------------------------------------------------
-# We check for the 'data/train' directory to see if the HuggingFace download finished
-if [[ ! -d "$OTO_DATA_DIR/data/train" ]]; then
-    echo "Downloading oto_speech dataset and pseudo-labels..."
-    lhotse download oto_speech "$OTO_DATA_DIR"
+MFA_TAR_FILE="$DATA_DIR/voxpopuli/voxpopuli_mfa_alignments.tar.gz"
+MFA_EXTRACT_DIR="$DATA_DIR/voxpopuli/mfa_alignments"
+
+if [[ ! -d "$MFA_EXTRACT_DIR" ]]; then
+    echo "Downloading MFA alignments from Google Drive..."
+    gdown --fuzzy "$GDRIVE_FILE_ID" -O "$MFA_TAR_FILE"
+
+    echo "Extracting alignments..."
+    mkdir -p "$MFA_EXTRACT_DIR"
+    tar -xzvf "$MFA_TAR_FILE" -C "$DATA_DIR/voxpopuli"
 else
-    echo "oto_speech data already exists at $OTO_DATA_DIR. Skipping download."
+    echo "MFA Alignments already exist at $MFA_EXTRACT_DIR. Skipping download."
+fi
+
+# Download specifically the ASR subset
+if [[ ! -d "$DATA_DIR/voxpopuli/raw_audios" ]]; then
+    echo "Downloading VoxPopuli $LANG ($SUBSET)..."
+    lhotse download voxpopuli "$DATA_DIR/voxpopuli" --subset "$SUBSET"
+fi
+
+if [[ ! -d "$DATA_DIR/voxpopuli/raw_audios/${LANG}" ]]; then
+    echo "Due to bug in prep code, moving from original to ${LANG} subdir"
+    mv "$DATA_DIR/voxpopuli/raw_audios/original" "$DATA_DIR/voxpopuli/raw_audios/${LANG}"
 fi
 
 # ---------------------------------------------------------------------------
 # Step 2: Prepare Lhotse Manifests
 # ---------------------------------------------------------------------------
-REC_FILE="$OTO_MANIFESTS_DIR/oto_recordings_train.jsonl.gz"
-SUP_FILE="$OTO_MANIFESTS_DIR/oto_supervisions_train.jsonl.gz"
+echo "Preparing Lhotse manifests for $LANG..."
+lhotse prepare voxpopuli "$DATA_DIR/voxpopuli" "$VOXPOPULI_MANIFESTS_DIR" --task "$SUBSET" --lang "$LANG"
 
-if [[ ! -f "$REC_FILE" ]] || [[ ! -f "$SUP_FILE" ]]; then
-    echo "Preparing Lhotse manifests for oto_speech (with lazy 16kHz resampling)..."
-    lhotse prepare oto_speech "$OTO_DATA_DIR" "$OTO_MANIFESTS_DIR"
-else
-    echo "Manifests already exist at $OTO_MANIFESTS_DIR. Skipping prepare."
-fi
+manifest_prefix="voxpopuli"
+for split in  dev test; do
+    echo "Processing VoxPopuli $LANG $split split..."
 
-# ---------------------------------------------------------------------------
-# Step 3: Create and Trim Cutsets
-# ---------------------------------------------------------------------------
-CUTS_FILE="$OTO_MANIFESTS_DIR/oto_cutset_train.jsonl.gz"
-CUTS_PER_SEG="$OTO_MANIFESTS_DIR/oto_cutset_per_seg_train.jsonl.gz"
+    REC_FILE="$VOXPOPULI_MANIFESTS_DIR/${manifest_prefix}-asr-${LANG}_recordings_${split}.jsonl.gz"
+    SUP_FILE="$VOXPOPULI_MANIFESTS_DIR/${manifest_prefix}-asr-${LANG}_supervisions_${split}.jsonl.gz"
+    # New file for the swapped text
+    SUP_FILE_ORIG="$VOXPOPULI_MANIFESTS_DIR/${manifest_prefix}-asr-${LANG}_supervisions_orig_text_${split}.jsonl.gz"
 
-if [[ ! -f "$CUTS_PER_SEG" ]]; then
-    echo "Creating simple cutset..."
-    lhotse cut simple \
-        -r "$REC_FILE" \
-        -s "$SUP_FILE" \
-        "$CUTS_FILE"
+    if [[ ! -f "$REC_FILE" ]]; then
+        echo "Warning: $REC_FILE not found. Skipping $split split."
+        continue
+    fi
 
-    echo "Trimming to supervisions..."
-    # Trim the full-length audio cuts down to the exact boundaries of the pseudo-labels
+    # --- Step 3a: Post-process to use orig_text instead of normed_text ---
+    echo "  Replacing normed_text with orig_text for $split..."
+    python3 - <<EOF
+from lhotse import SupervisionSet
+
+def use_orig_text(sup):
+  orig = sup.custom.pop("orig_text")
+  if orig:
+    sup.text = orig
+    sup.custom = None
+  return sup
+
+sups = SupervisionSet.from_file("$SUP_FILE")
+sups = sups.map(use_orig_text)
+sups.to_file("$SUP_FILE_ORIG")
+EOF
+
+    CUTS_FILE="$VOXPOPULI_MANIFESTS_DIR/${manifest_prefix}-asr-${LANG}_cuts_${split}.jsonl.gz"
+    CUTS_PER_SEG="$VOXPOPULI_MANIFESTS_DIR/${manifest_prefix}-asr-${LANG}_cuts_per_segment_${split}.jsonl.gz"
+    CUTS_ALIGNED="$VOXPOPULI_MANIFESTS_DIR/${manifest_prefix}-asr-${LANG}_cuts_per_segment_aligned_${split}.jsonl.gz"
+
+    # --- Step 3b: build simple cuts (using the new orig_text supervisions) ---
+    python "$DATA_SCRIPTS_PATH/create_cutset.py" \
+        --input_recset "$REC_FILE" \
+        --input_supset "$SUP_FILE_ORIG" \
+        --output  "$CUTS_FILE"
+
+    # --- Step 3c: trim to supervisions ---
     lhotse cut trim-to-supervisions --discard-overlapping \
         "$CUTS_FILE" \
         "$CUTS_PER_SEG"
-else
-    echo "Trimmed cutset already exists. Skipping cutset generation."
-fi
 
-echo "=== Done! ==="
-echo "Final trimmed cutset saved to: $CUTS_PER_SEG"
+    # --- Step 3d: merge TextGrids into Lhotse cuts natively ---
+    echo "  [FA] Merging MFA TextGrids into Lhotse cuts natively for $split..."
+
+    python "$DATA_SCRIPTS_PATH/merge_mfa_into_cuts.py" \
+        --cuts_file "$CUTS_PER_SEG" \
+        --textgrid_dir "$MFA_EXTRACT_DIR/$split" \
+        --out_cuts "$CUTS_ALIGNED"
+
+    echo "  Done: $CUTS_ALIGNED"
+done
+
+echo "Finished"
