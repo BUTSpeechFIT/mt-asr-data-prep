@@ -106,7 +106,8 @@ EOF
     python "$DATA_SCRIPTS_PATH/merge_mfa_into_cuts.py" \
         --cuts_file "$CUTS_PER_SEG" \
         --textgrid_dir "$MFA_EXTRACT_DIR/$split" \
-        --out_cuts "$CUTS_ALIGNED"
+        --out_cuts "$CUTS_ALIGNED" \
+        -j 16
 
     echo "  Done: $CUTS_ALIGNED"
 done

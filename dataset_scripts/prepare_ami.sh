@@ -56,10 +56,10 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
             lhotse cut simple \
                 -r "$AMI_MANIFESTS_DIR/${manifest_prefix}_recordings_${split}.jsonl.gz" \
                 -s "$AMI_MANIFESTS_DIR/${manifest_prefix}_supervisions_${split}.jsonl.gz" \
-                "$AMI_MANIFESTS_DIR/cuts_${split}.jsonl.gz"
+                "$AMI_MANIFESTS_DIR/${manifest_prefix}_cuts_${split}.jsonl.gz"
 
             lhotse cut trim-to-supervisions --discard-overlapping \
-                "$AMI_MANIFESTS_DIR/cuts_${split}.jsonl.gz" "$AMI_MANIFESTS_DIR/cuts_per_segment_${split}.jsonl.gz"
+                "$AMI_MANIFESTS_DIR/${manifest_prefix}_cuts_${split}.jsonl.gz" "$AMI_MANIFESTS_DIR/${manifest_prefix}_cuts_per_segment_${split}.jsonl.gz"
         else
             # Default cut processing for sdm, mdm, ihm-mix
             # Create cutset from recordings and supervisions

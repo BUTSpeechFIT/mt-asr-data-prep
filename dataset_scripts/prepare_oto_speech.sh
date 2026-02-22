@@ -35,6 +35,7 @@ fi
 REC_FILE="$OTO_MANIFESTS_DIR/oto_recordings_train.jsonl.gz"
 SUP_FILE="$OTO_MANIFESTS_DIR/oto_supervisions_train.jsonl.gz"
 
+
 if [[ ! -f "$REC_FILE" ]] || [[ ! -f "$SUP_FILE" ]]; then
     echo "Preparing Lhotse manifests for oto_speech..."
     lhotse prepare oto-speech "$OTO_DATA_DIR" "$OTO_MANIFESTS_DIR"
@@ -50,10 +51,10 @@ CUTS_PER_SEG="$OTO_MANIFESTS_DIR/oto_cutset_per_seg_train.jsonl.gz"
 
 if [[ ! -f "$CUTS_PER_SEG" ]]; then
     echo "Creating simple cutset..."
-    lhotse cut simple \
-        -r "$REC_FILE" \
-        -s "$SUP_FILE" \
-        "$CUTS_FILE"
+    python "$DATA_SCRIPTS_PATH/create_cutset.py" \
+        --input_recset "$REC_FILE" \
+        --input_supset "$SUP_FILE" \
+        --output "$CUTS_FILE"
 
     echo "Trimming to supervisions..."
     # Trim the full-length audio cuts down to the exact boundaries of the pseudo-labels

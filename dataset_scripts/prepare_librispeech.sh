@@ -15,14 +15,14 @@ LIBRISPEECH_MANIFESTS_DIR="$MANIFESTS_DIR/librispeech"
 echo "Preparing LibriSpeech dataset..."
 
 # Download and prepare LibriSpeech data
-if [[ ! -d "$DATA_DIR/librispeech" ]]; then
-    echo "Downloading LibriSpeech data..."
-    lhotse download librispeech "$DATA_DIR/librispeech"
-fi
+#if [[ ! -d "$DATA_DIR/librispeech" ]]; then
+#    echo "Downloading LibriSpeech data..."
+lhotse download librispeech "$DATA_DIR/librispeech" --alignments
+#fi
 
 # Prepare LibriSpeech manifests
 echo "Preparing LibriSpeech manifests..."
-lhotse prepare librispeech "$DATA_DIR/librispeech/LibriSpeech" "$LIBRISPEECH_MANIFESTS_DIR"
+lhotse prepare librispeech "$DATA_DIR/librispeech/LibriSpeech" "$LIBRISPEECH_MANIFESTS_DIR" -j 32
 
 manifest_prefix="librispeech"
 
