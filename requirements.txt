@@ -1,4 +1,4 @@
-lhotse @ git+https://github.com/Lakoc/lhotse.git@notsofar-ihm
+lhotse @ git+https://github.com/Lakoc/lhotse.git@otoSpeech
 huggingface-hub==0.35.3
 textgrid
 pre-commit

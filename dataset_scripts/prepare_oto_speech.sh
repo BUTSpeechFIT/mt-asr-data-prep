@@ -24,7 +24,7 @@ mkdir -p "$OTO_MANIFESTS_DIR"
 # We check for the 'data/train' directory to see if the HuggingFace download finished
 if [[ ! -d "$OTO_DATA_DIR/data/train" ]]; then
     echo "Downloading oto_speech dataset and pseudo-labels..."
-    lhotse download oto_speech "$OTO_DATA_DIR"
+    lhotse download oto-speech "$OTO_DATA_DIR"
 else
     echo "oto_speech data already exists at $OTO_DATA_DIR. Skipping download."
 fi
@@ -36,8 +36,8 @@ REC_FILE="$OTO_MANIFESTS_DIR/oto_recordings_train.jsonl.gz"
 SUP_FILE="$OTO_MANIFESTS_DIR/oto_supervisions_train.jsonl.gz"
 
 if [[ ! -f "$REC_FILE" ]] || [[ ! -f "$SUP_FILE" ]]; then
-    echo "Preparing Lhotse manifests for oto_speech (with lazy 16kHz resampling)..."
-    lhotse prepare oto_speech "$OTO_DATA_DIR" "$OTO_MANIFESTS_DIR"
+    echo "Preparing Lhotse manifests for oto_speech..."
+    lhotse prepare oto-speech "$OTO_DATA_DIR" "$OTO_MANIFESTS_DIR"
 else
     echo "Manifests already exist at $OTO_MANIFESTS_DIR. Skipping prepare."
 fi
