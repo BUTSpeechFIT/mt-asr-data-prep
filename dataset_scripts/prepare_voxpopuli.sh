@@ -55,7 +55,7 @@ echo "Preparing Lhotse manifests for $LANG..."
 lhotse prepare voxpopuli "$DATA_DIR/voxpopuli" "$VOXPOPULI_MANIFESTS_DIR" --task "$SUBSET" --lang "$LANG"
 
 manifest_prefix="voxpopuli"
-for split in  dev test; do
+for split in train dev test; do
     echo "Processing VoxPopuli $LANG $split split..."
 
     REC_FILE="$VOXPOPULI_MANIFESTS_DIR/${manifest_prefix}-asr-${LANG}_recordings_${split}.jsonl.gz"
