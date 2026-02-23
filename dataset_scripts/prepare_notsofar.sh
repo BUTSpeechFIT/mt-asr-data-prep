@@ -83,9 +83,11 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
 
     if [[ "$MIC_TYPE" == "ihm" ]]; then
         echo "Trimming IHM cuts to supervisions..."
-        lhotse cut trim-to-supervisions --discard-overlapping \
-            "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset.jsonl.gz" \
-            "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset_per_seg.jsonl.gz"
+        for split in "${SPLITS[@]}"; do
+          lhotse cut trim-to-supervisions --discard-overlapping \
+              "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${split}_cutset.jsonl.gz" \
+              "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${split}_cutset_per_seg.jsonl.gz"
+        done
     fi
 
     if [[ "$MIC_TYPE" != "ihm" ]]; then
