@@ -37,7 +37,7 @@ def align_cut(cut, textgrid_dir):
                 words.append(
                     AlignmentItem(
                         symbol=interval.mark,
-                        start=round(interval.minTime, 6),
+                        start=round(interval.minTime, 6) + cut.start,
                         duration=round(interval.maxTime - interval.minTime, 6),
                     )
                 )
