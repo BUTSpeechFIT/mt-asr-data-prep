@@ -8,16 +8,16 @@ import lhotse
 from lhotse import CutSet, fastcopy, load_manifest
 from lhotse.lazy import LazyFlattener, LazyMapper
 
-
 PROCESSING_REGEX_STR = "!\"#$%&()*+,./:;<=>?@[\\]^_`'{|}~"
 ALIGNMENT_WORD_MAP = {  # Normalization map between the words and the alignment (works for AMI and NOTSOFAR).
-    'mm-hmm': 'mmm',
+    "mm-hmm": "mmm",
 }
 
 # Precomputed constants for token normalization and timing precision.
-TRANSLATOR = str.maketrans('', '', PROCESSING_REGEX_STR)
+TRANSLATOR = str.maketrans("", "", PROCESSING_REGEX_STR)
 EPS = 1e-5
-WORD_ALIGNMENT_KEY = 'word'
+WORD_ALIGNMENT_KEY = "word"
+
 
 def _normalize_word(word: str) -> str:
     """
@@ -33,6 +33,23 @@ def _normalize_word(word: str) -> str:
     return word.translate(TRANSLATOR).lower()
 
 
+def _fix_alignment_offset_and_filter_punctuation(cut: lhotse.cut.Cut) -> lhotse.cut.Cut:
+    new_sups: List[Any] = []
+    offset = cut.start
+    for sup in cut.supervisions:
+        if WORD_ALIGNMENT_KEY in sup.alignment:
+            new_alignments = []
+            for word in sup.alignment[WORD_ALIGNMENT_KEY]:
+                shifted = word.with_offset(-offset)
+                if len(_normalize_word(shifted.symbol)) > 0:
+                    new_alignments.append(shifted)
+            sup.alignment[WORD_ALIGNMENT_KEY] = new_alignments
+        new_sups.append(sup)
+    cut.supervisions = new_sups
+    return cut
+
+
+# Keep the original public API so callers aren't broken.
 def filter_punctuation_alignments(cut: lhotse.cut.Cut) -> lhotse.cut.Cut:
     """
     Filter out alignment entries that are only punctuation/special characters.
@@ -61,10 +78,10 @@ def filter_punctuation_alignments(cut: lhotse.cut.Cut) -> lhotse.cut.Cut:
 
 
 def _prepare_segmented_data(
-        cuts: CutSet,
-        output_path: str,
-        max_segment_duration: float = 30.0,
-        num_jobs: int = 1,
+    cuts: CutSet,
+    output_path: str,
+    max_segment_duration: float = 30.0,
+    num_jobs: int = 1,
 ) -> lhotse.CutSet:
     """
     Trim, normalize, and split a `CutSet` into segments not exceeding the
@@ -81,29 +98,31 @@ def _prepare_segmented_data(
         lhotse.CutSet: The processed and segmented cut set.
     """
     output_path = Path(output_path) if output_path else None
-    logging.info("Trimming to groups with max_pause=2s")
-    cuts = cuts.trim_to_supervision_groups(max_pause=2, num_jobs=num_jobs).to_eager()
-    for c in cuts:
-        for s in c.supervisions:
-            if WORD_ALIGNMENT_KEY in s.alignment:
-                s.alignment[WORD_ALIGNMENT_KEY] = [
-                    a.with_offset(-c.start) for a in s.alignment[WORD_ALIGNMENT_KEY]
-                ]
-    logging.info(f"Windowing the overlapping segments to max {int(max_segment_duration)}s")
 
-    cuts = cuts.map(filter_punctuation_alignments).to_eager()
+    logging.info("Trimming to groups with max_pause=2s")
+    cuts = cuts.trim_to_supervision_groups(max_pause=2, num_jobs=num_jobs)
+    # Lazy fused pass: offset correction + punctuation filtering
+    cuts = cuts.map(_fix_alignment_offset_and_filter_punctuation)
+
+    logging.info(
+        f"Windowing the overlapping segments to max {int(max_segment_duration)}s"
+    )
     cuts = split_overlapping_segments(
         cuts,
         max_segment_duration=max_segment_duration,
         num_jobs=num_jobs,
-    ).to_eager()
+    )
 
     logging.info("Saving the output")
+    # Single materialisation right before writing.
+    cuts = cuts.to_eager()
     cuts.to_file(output_path)
     return cuts
 
 
-def split_overlapping_segments(cutset: CutSet, max_segment_duration: float = 30, num_jobs: int = 1) -> CutSet:
+def split_overlapping_segments(
+    cutset: CutSet, max_segment_duration: float = 30, num_jobs: int = 1
+) -> CutSet:
     """
     Split a CutSet containing overlapping segments into smaller chunks while preserving speaker overlap information.
 
@@ -128,10 +147,14 @@ def split_overlapping_segments(cutset: CutSet, max_segment_duration: float = 30,
     """
     if num_jobs <= 1:
         return _split_overlapping_segments_single(cutset, max_segment_duration)
-    
+
     from lhotse.manipulation import split_parallelize_combine
+
     return split_parallelize_combine(
-        num_jobs, cutset, _split_overlapping_segments_single, max_len=max_segment_duration
+        num_jobs,
+        cutset,
+        _split_overlapping_segments_single,
+        max_len=max_segment_duration,
     )
 
 
@@ -162,7 +185,11 @@ def get_overlapping_sups(prev_group: List[List[Any]], sup: Any) -> List[List[Any
     Returns:
         List[List[Any]]: The subset of `prev_group` that overlaps with `sup`.
     """
-    return [s for s in prev_group if s[0].start <= sup.start < s[0].end and sup.id not in s[0].id]
+    return [
+        s
+        for s in prev_group
+        if s[0].start <= sup.start < s[0].end and sup.id not in s[0].id
+    ]
 
 
 def select_words_within_segment(
@@ -192,19 +219,32 @@ def select_words_within_segment(
     fst_word_start_time: float = -1
     last_word_end_time: float = sup.start
     alig_idx: int = 0
-    current_alig = sup.alignment[WORD_ALIGNMENT_KEY][alig_idx] if alig_idx < len(sup.alignment[WORD_ALIGNMENT_KEY]) else None
+    current_alig = (
+        sup.alignment[WORD_ALIGNMENT_KEY][alig_idx]
+        if alig_idx < len(sup.alignment[WORD_ALIGNMENT_KEY])
+        else None
+    )
     alig_symbol_split = (
         [_normalize_word(x) for x in current_alig.symbol.split()]
-        if current_alig is not None else None
+        if current_alig is not None
+        else None
     )
 
-    if WORD_ALIGNMENT_KEY in sup.alignment and len(sup.alignment[WORD_ALIGNMENT_KEY]) > 0:
+    if (
+        WORD_ALIGNMENT_KEY in sup.alignment
+        and len(sup.alignment[WORD_ALIGNMENT_KEY]) > 0
+    ):
         for w in sup.text.split():
             adjusted_w = _normalize_word(w)
 
             # If the current word matches with the alignment.
-            if current_alig is not None and (adjusted_w == alig_symbol_split[0] or (
-                    adjusted_w in ALIGNMENT_WORD_MAP and ALIGNMENT_WORD_MAP[adjusted_w] == alig_symbol_split[0])):
+            if current_alig is not None and (
+                adjusted_w == alig_symbol_split[0]
+                or (
+                    adjusted_w in ALIGNMENT_WORD_MAP
+                    and ALIGNMENT_WORD_MAP[adjusted_w] == alig_symbol_split[0]
+                )
+            ):
 
                 if current_alig.end > segment_end:
                     break
@@ -213,23 +253,36 @@ def select_words_within_segment(
                     if fst_word_start_time == -1:
                         fst_word_start_time = current_alig.start
                     words_within_segment.append(w)
-                    alignments_within_segment.append(sup.alignment[WORD_ALIGNMENT_KEY][alig_idx])
+                    alignments_within_segment.append(
+                        sup.alignment[WORD_ALIGNMENT_KEY][alig_idx]
+                    )
 
                 alig_symbol_split.pop(0)
                 last_word_end_time = current_alig.end
                 if not alig_symbol_split:
                     alig_idx += 1
-                    current_alig = sup.alignment[WORD_ALIGNMENT_KEY][alig_idx] if alig_idx < len(sup.alignment[WORD_ALIGNMENT_KEY]) else None
+                    current_alig = (
+                        sup.alignment[WORD_ALIGNMENT_KEY][alig_idx]
+                        if alig_idx < len(sup.alignment[WORD_ALIGNMENT_KEY])
+                        else None
+                    )
                     alig_symbol_split = (
                         [_normalize_word(x) for x in current_alig.symbol.split()]
-                        if current_alig is not None else None
+                        if current_alig is not None
+                        else None
                     )
             else:
                 # Special symbol that is not aligned -> appending to words and assuming the same timing info as the previous one.
                 if fst_word_start_time != -1:
                     words_within_segment.append(w)
 
-    return words_within_segment, alignments_within_segment, fst_word_start_time, last_word_end_time, alig_idx
+    return (
+        words_within_segment,
+        alignments_within_segment,
+        fst_word_start_time,
+        last_word_end_time,
+        alig_idx,
+    )
 
 
 def _segment_end(start_time: float, max_len: float) -> float:
@@ -247,7 +300,9 @@ def _segment_end(start_time: float, max_len: float) -> float:
     return start_time + max_len - EPS
 
 
-def _split_cut_perseg(cut: lhotse.cut.Cut, max_len: float = 30, use_ovl_fb_sups: bool = True):
+def _split_cut_perseg(
+    cut: lhotse.cut.Cut, max_len: float = 30, use_ovl_fb_sups: bool = True
+):
     """
     Split a single cut into sequential segments of at most `max_len` seconds,
     attempting to preserve conversational structure and handle overlapping
@@ -275,18 +330,23 @@ def _split_cut_perseg(cut: lhotse.cut.Cut, max_len: float = 30, use_ovl_fb_sups:
     # Flag = True <=> speaker's utterance is unfinished.
     sup_group_flags = []
 
-    current_sup_group: List[List[Any]] = [[fastcopy(sups[0], id=f'{sups[0].id}-{0}-{0}'), 0]]
+    current_sup_group: List[List[Any]] = [
+        [fastcopy(sups[0], id=f"{sups[0].id}-{0}-{0}"), 0]
+    ]
     current_sup_group_flags: Dict[str, bool] = dict()
     fallback_sup_idx: int = -1
     is_falling_back: bool = False
 
     idx = 1
     while idx < len(sups) + 1:
-        # print(idx)
         sup = sups[idx] if idx < len(sups) else None
         # We need to add all supervisions that start before the end of the current max 30s long segment. Then, we need to post-process the short ones and return back.
-        if sup is not None and (not current_sup_group or sup.start - current_sup_group[0][0].start < max_len):
-            current_sup_group.append([fastcopy(sup, id=f'{sup.id}-{idx}-{len(current_sup_group)}'), idx])
+        if sup is not None and (
+            not current_sup_group or sup.start - current_sup_group[0][0].start < max_len
+        ):
+            current_sup_group.append(
+                [fastcopy(sup, id=f"{sup.id}-{idx}-{len(current_sup_group)}"), idx]
+            )
             assert sup.start >= current_sup_group[0][0].start
 
             if is_falling_back and len(sup_groups) > 0 and use_ovl_fb_sups:
@@ -299,20 +359,31 @@ def _split_cut_perseg(cut: lhotse.cut.Cut, max_len: float = 30, use_ovl_fb_sups:
                         ovl_sup = cut.supervisions[ovl_idx]
                         assert ovl_sup.speaker != sup.speaker
 
-                        words_within_segment, alignments_within_segment, fst_word_start_time, last_word_end_time, alig_idx = select_words_within_segment(
+                        (
+                            words_within_segment,
+                            alignments_within_segment,
+                            fst_word_start_time,
+                            last_word_end_time,
+                            alig_idx,
+                        ) = select_words_within_segment(
                             ovl_sup, sup.start, _segment_end(sup.start, max_len)
                         )
 
                         if fst_word_start_time != -1:
-                            current_sup_group.append([fastcopy(
-                                ovl_sup,
-                                id=f'{ovl_sup.id}-{ovl_idx}-{len(current_sup_group)}_ovl',
-                                start=fst_word_start_time,
-                                # duration=ovl_sup.alignment['word'][alig_idx].end - fst_word_start_time,
-                                duration=last_word_end_time - fst_word_start_time,
-                                text=' '.join(words_within_segment),
-                                alignment={'word': alignments_within_segment},
-                            ), ovl_idx])
+                            current_sup_group.append(
+                                [
+                                    fastcopy(
+                                        ovl_sup,
+                                        id=f"{ovl_sup.id}-{ovl_idx}-{len(current_sup_group)}_ovl",
+                                        start=fst_word_start_time,
+                                        duration=last_word_end_time
+                                        - fst_word_start_time,
+                                        text=" ".join(words_within_segment),
+                                        alignment={"word": alignments_within_segment},
+                                    ),
+                                    ovl_idx,
+                                ]
+                            )
                             assert fst_word_start_time >= 0
                             assert fst_word_start_time >= current_sup_group[0][0].start
             is_falling_back = False
@@ -328,8 +399,16 @@ def _split_cut_perseg(cut: lhotse.cut.Cut, max_len: float = 30, use_ovl_fb_sups:
                     found_exceeding = True
 
                     # Shift segment end by EPS to avoid floating point precision issues.
-                    words_within_segment, alignments_within_segment, fst_word_start_time, last_word_end_time, alig_idx = select_words_within_segment(
-                        s, current_sup_group[0][0].start, _segment_end(current_sup_group[0][0].start, max_len)
+                    (
+                        words_within_segment,
+                        alignments_within_segment,
+                        fst_word_start_time,
+                        last_word_end_time,
+                        alig_idx,
+                    ) = select_words_within_segment(
+                        s,
+                        current_sup_group[0][0].start,
+                        _segment_end(current_sup_group[0][0].start, max_len),
                     )
 
                     # Even the first aligned word exceeds the boundary.
@@ -342,8 +421,8 @@ def _split_cut_perseg(cut: lhotse.cut.Cut, max_len: float = 30, use_ovl_fb_sups:
                             id=f"{s.id}",
                             start=current_sup_group[i][0].start,
                             duration=last_word_end_time - current_sup_group[i][0].start,
-                            text=' '.join(words_within_segment),
-                            alignment={'word': alignments_within_segment},
+                            text=" ".join(words_within_segment),
+                            alignment={"word": alignments_within_segment},
                         )
 
                     if fallback_sup_idx == -1 or fallback_sup_idx > i:
@@ -355,7 +434,11 @@ def _split_cut_perseg(cut: lhotse.cut.Cut, max_len: float = 30, use_ovl_fb_sups:
             sup_groups.append(current_sup_group)
             sup_group_flags.append(current_sup_group_flags)
 
-            assert max(x[0].end for x in current_sup_group) - min(x[0].start for x in current_sup_group) <= max_len
+            assert (
+                max(x[0].end for x in current_sup_group)
+                - min(x[0].start for x in current_sup_group)
+                <= max_len
+            )
 
             # If we've found and exceeding supervision, we will set the fallback idx and will move back.
             # If not, we need to add the current supervision to the new (current) group.
@@ -411,7 +494,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cset = load_manifest(args.input)
-    _prepare_segmented_data(cuts=cset,
-                            output_path=args.output,
-                            max_segment_duration=args.max_len,
-                            num_jobs=args.num_jobs)
+    _prepare_segmented_data(
+        cuts=cset,
+        output_path=args.output,
+        max_segment_duration=args.max_len,
+        num_jobs=args.num_jobs,
+    )
