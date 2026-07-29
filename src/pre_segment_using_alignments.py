@@ -1,8 +1,9 @@
 import argparse
 import logging
+import random
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import lhotse
 from lhotse import CutSet, fastcopy, load_manifest
@@ -60,11 +61,99 @@ def filter_punctuation_alignments(cut: lhotse.cut.Cut) -> lhotse.cut.Cut:
     return cut
 
 
+def _apply_stochastic_offset(
+    cut: "lhotse.cut.Cut",
+    max_segment_duration: float,
+    rng: random.Random,
+    max_offset_gap: float = 1.0,
+    id_suffix: str = "",
+) -> Any:
+    """
+    Randomly shift where a cut's windowing will start: pick a random point in
+    ``[0, max_segment_duration)``, snap it forward to the next word boundary (so we
+    never start mid-word), then back off by a further random ``[0, max_offset_gap]``
+    seconds of leading silence (capped so it never overlaps the previous word). This
+    makes the fixed-size windows produced downstream by `split_overlapping_segments`
+    land at different boundaries than the base (offset=0) pass, with a natural-looking
+    lead-in silence, instead of always starting exactly at the first supervision.
+
+    Reuses `select_words_within_segment` (also used by `_split_cut_perseg` for the
+    symmetric case of trimming a supervision at a segment's end boundary) to trim
+    each supervision to only the words at/after the chosen word boundary.
+
+    Returns None if the cut is already shorter than `max_segment_duration` (a single
+    window regardless of offset), or if no word starts at or after the sampled point.
+    """
+    if cut.duration <= max_segment_duration:
+        return None
+
+    target = rng.uniform(0, max_segment_duration)
+    word_alignments = [
+        a for s in cut.supervisions for a in s.alignment.get(WORD_ALIGNMENT_KEY, [])
+    ]
+    word_starts = sorted(a.start for a in word_alignments)
+    candidates = [t for t in word_starts if t >= target]
+    if not candidates:
+        return None
+    word_offset = candidates[0]
+
+    # Cap the leading gap so it never reaches back into the end of the previous word.
+    prev_word_ends = [
+        a.start + a.duration for a in word_alignments if a.start + a.duration <= word_offset
+    ]
+    floor = max(prev_word_ends) if prev_word_ends else 0.0
+    gap = rng.uniform(0, min(max_offset_gap, word_offset - floor))
+    offset = word_offset - gap
+
+    segment_end = cut.duration - EPS
+    new_supervisions = []
+    for s in cut.supervisions:
+        if s.end <= offset:
+            continue
+        if not s.alignment.get(WORD_ALIGNMENT_KEY):
+            if s.start >= offset:
+                new_supervisions.append(fastcopy(s, id=f"{s.id}{id_suffix}").with_offset(-offset))
+            continue
+
+        words, aligns, fst_start, last_end, _ = select_words_within_segment(
+            s, word_offset, segment_end
+        )
+        if fst_start == -1:
+            continue
+        new_supervisions.append(
+            fastcopy(
+                s,
+                id=f"{s.id}{id_suffix}",
+                start=fst_start,
+                duration=last_end - fst_start,
+                text=" ".join(words),
+                alignment={
+                    WORD_ALIGNMENT_KEY: [a.with_offset(-offset) for a in aligns]
+                },
+            ).with_offset(-offset)
+        )
+
+    if not new_supervisions:
+        return None
+
+    return fastcopy(
+        cut,
+        id=f"{cut.id}{id_suffix}",
+        start=cut.start + offset,
+        duration=cut.duration - offset,
+        supervisions=new_supervisions,
+    )
+
+
 def _prepare_segmented_data(
         cuts: CutSet,
         output_path: str,
         max_segment_duration: float = 30.0,
         num_jobs: int = 1,
+        stochastic: bool = False,
+        num_stochastic_copies: int = 2,
+        max_offset_gap: float = 1.0,
+        seed: Optional[int] = None,
 ) -> lhotse.CutSet:
     """
     Trim, normalize, and split a `CutSet` into segments not exceeding the
@@ -76,6 +165,17 @@ def _prepare_segmented_data(
         max_segment_duration (float, optional): Maximum duration (seconds) per
             segment. Defaults to 30.0.
         num_jobs (int, optional): Number of parallel jobs for processing. Defaults to 1.
+        stochastic (bool, optional): If True, in addition to the base (offset=0)
+            windowing, generate `num_stochastic_copies` extra copies of each long
+            recording with a random, word-boundary-aligned starting offset (plus a
+            random leading silence gap), so segment boundaries vary across copies
+            instead of always starting at the first supervision. This multiplies the
+            amount of output data. Defaults to False.
+        num_stochastic_copies (int, optional): Number of extra randomly-offset copies
+            to generate per long recording when `stochastic` is True. Defaults to 2.
+        max_offset_gap (float, optional): Max random leading silence (seconds) added
+            before the snapped word boundary when `stochastic` is True. Defaults to 1.0.
+        seed (int, optional): Seed for the offsets sampled when `stochastic` is True.
 
     Returns:
         lhotse.CutSet: The processed and segmented cut set.
@@ -92,6 +192,25 @@ def _prepare_segmented_data(
     logging.info(f"Windowing the overlapping segments to max {int(max_segment_duration)}s")
 
     cuts = cuts.map(filter_punctuation_alignments).to_eager()
+
+    if stochastic and num_stochastic_copies > 0:
+        logging.info(
+            f"Generating {num_stochastic_copies} extra stochastically-offset "
+            "copies per recording before windowing"
+        )
+        rng = random.Random(seed)
+        all_cuts = list(cuts)
+        for variant in range(num_stochastic_copies):
+            id_suffix = f"-off{variant}"
+            variant_cuts = [
+                _apply_stochastic_offset(
+                    c, max_segment_duration, rng, max_offset_gap=max_offset_gap, id_suffix=id_suffix
+                )
+                for c in cuts
+            ]
+            all_cuts.extend(c for c in variant_cuts if c is not None)
+        cuts = CutSet.from_cuts(all_cuts)
+
     cuts = split_overlapping_segments(
         cuts,
         max_segment_duration=max_segment_duration,
@@ -282,9 +401,7 @@ def _split_cut_perseg(cut: lhotse.cut.Cut, max_len: float = 30, use_ovl_fb_sups:
 
     idx = 1
     while idx < len(sups) + 1:
-        # print(idx)
         sup = sups[idx] if idx < len(sups) else None
-        # We need to add all supervisions that start before the end of the current max 30s long segment. Then, we need to post-process the short ones and return back.
         if sup is not None and (not current_sup_group or sup.start - current_sup_group[0][0].start < max_len):
             current_sup_group.append([fastcopy(sup, id=f'{sup.id}-{idx}-{len(current_sup_group)}'), idx])
             assert sup.start >= current_sup_group[0][0].start
@@ -293,10 +410,10 @@ def _split_cut_perseg(cut: lhotse.cut.Cut, max_len: float = 30, use_ovl_fb_sups:
                 overlapping_sups = get_overlapping_sups(sup_groups[-1], sup)
                 if overlapping_sups:
                     for _, ovl_idx in overlapping_sups:
-                        # We want to get a part of the supervision that starts after sup.start.
-                        # We need to skip words in the original text as well and then create a function that creates the supervision...
-                        # Ideally, we want to use the same function that splits the text and cuts (below) to avoid duplicating the text.
-                        ovl_sup = cut.supervisions[ovl_idx]
+                        # ovl_idx indexes into `sups` (sorted by start), not the original
+                        # (unsorted) `cut.supervisions` -- using the latter looked up an
+                        # unrelated supervision whenever the two orderings diverged.
+                        ovl_sup = sups[ovl_idx]
                         assert ovl_sup.speaker != sup.speaker
 
                         words_within_segment, alignments_within_segment, fst_word_start_time, last_word_end_time, alig_idx = select_words_within_segment(
@@ -308,7 +425,6 @@ def _split_cut_perseg(cut: lhotse.cut.Cut, max_len: float = 30, use_ovl_fb_sups:
                                 ovl_sup,
                                 id=f'{ovl_sup.id}-{ovl_idx}-{len(current_sup_group)}_ovl',
                                 start=fst_word_start_time,
-                                # duration=ovl_sup.alignment['word'][alig_idx].end - fst_word_start_time,
                                 duration=last_word_end_time - fst_word_start_time,
                                 text=' '.join(words_within_segment),
                                 alignment={'word': alignments_within_segment},
@@ -407,6 +523,31 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_jobs", type=int, default=8, help="Number of parallel jobs"
     )
+    parser.add_argument(
+        "--stochastic",
+        action="store_true",
+        help="In addition to the base (offset=0) windowing, generate "
+        "--num_stochastic_copies extra copies of each long recording with a random, "
+        "word-boundary-aligned starting offset (plus a random leading silence gap). "
+        "Multiplies the amount of output data.",
+    )
+    parser.add_argument(
+        "--num_stochastic_copies",
+        type=int,
+        default=2,
+        help="Number of extra randomly-offset copies per long recording (only used "
+        "with --stochastic)",
+    )
+    parser.add_argument(
+        "--max_offset_gap",
+        type=float,
+        default=1.0,
+        help="Max random leading silence in seconds before the snapped word boundary "
+        "(only used with --stochastic)",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None, help="Seed for --stochastic offsets"
+    )
 
     args = parser.parse_args()
 
@@ -414,4 +555,8 @@ if __name__ == "__main__":
     _prepare_segmented_data(cuts=cset,
                             output_path=args.output,
                             max_segment_duration=args.max_len,
-                            num_jobs=args.num_jobs)
+                            num_jobs=args.num_jobs,
+                            stochastic=args.stochastic,
+                            num_stochastic_copies=args.num_stochastic_copies,
+                            max_offset_gap=args.max_offset_gap,
+                            seed=args.seed)

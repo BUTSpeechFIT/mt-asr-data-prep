@@ -51,7 +51,7 @@ for n_src in 2 3; do
       "$DATA_DIR/LibriMix/storage" \
       "$LIBRIMIX_MANIFESTS_DIR" \
       --n_src $n_src \
-      --num-jobs 4
+      --num-jobs 64
 
   for split in clean-100 clean-360 clean-100_noisy clean-360_noisy; do
     if [[ ! -f "$LIBRIMIX_MANIFESTS_DIR/${manifest_prefix}_cutset_libri${n_src}mix_train-${split}_30s.jsonl.gz" ]]; then

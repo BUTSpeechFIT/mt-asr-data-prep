@@ -11,7 +11,7 @@ readonly SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 readonly DATASET_SCRIPTS_DIR="$SCRIPT_DIR/dataset_scripts"
 
 readonly AVAILABLE_DATASETS=(
-    "librispeech" "librimix" "librispeechmix" "ali_meeting-sdm" "ami-sdm" "ami-ihm-mix" "notsofar1-sdm"
+    "librispeech" "librimix" "librispeechmix" "ali_meeting-sdm" "ami-sdm" "ami-ihm-mix" "notsofar1-sdm" "musan" "fastmss"
 )
 
 # Dataset dependencies (bash 3 compatible)
@@ -21,6 +21,9 @@ get_dataset_dependency() {
             echo "librispeech"
             ;;
         librispeechmix)
+            echo "librispeech"
+            ;;
+        fastmss)
             echo "librispeech"
             ;;
         *)

@@ -37,7 +37,16 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
     if [[ ! -d "$DATA_DIR/ali_meeting" ]]; then
       lhotse download ali-meeting "$DATA_DIR/ali_meeting"
     fi
-    lhotse prepare ali-meeting --mic "$MIC_TYPE" --normalize-text none "$DATA_DIR/ali_meeting" "$ALI_MEETING_MANIFESTS_DIR"
+
+    save_mono_args=()
+    if [[ "$MIC_TYPE" == "sdm" ]]; then
+        # Without --save-mono, lhotse's "sdm" only tags the supervision channel -- the
+        # Recording itself still points at the full 8-channel far-field wav. --save-mono
+        # has lhotse extract a real single-channel wav per session (via sox), so the
+        # resulting cutset is genuinely mono and no downmixing is needed on our end.
+        save_mono_args=(--save-mono)
+    fi
+    lhotse prepare ali-meeting --mic "$MIC_TYPE" --normalize-text none "${save_mono_args[@]}" "$DATA_DIR/ali_meeting" "$ALI_MEETING_MANIFESTS_DIR"
 
     manifest_prefix="alimeeting-${MIC_TYPE}"
 
@@ -67,7 +76,25 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
             --output_path "$ALI_MEETING_MANIFESTS_DIR/${manifest_prefix}_supervisions_${split}.jsonl.gz"
     done
 
-    # We cannot prepare Whisper-style data due to unavailable word alignments.
+    # No word-level alignments are available for AliMeeting, so unlike NOTSOFAR-1 we
+    # cannot split long recordings precisely. Instead, group nearby supervisions into
+    # utterance groups and drop whatever is still longer than max_len. Only "sdm" is
+    # genuinely single-channel (see --save-mono above); "mdm" stays multi-channel with
+    # no windowed cutset, since we don't currently train on multi-channel audio.
+    if [[ "$MIC_TYPE" == "sdm" ]]; then
+        echo "Preparing windowed cuts for Whisper training..."
+        python "$DATA_SCRIPTS_PATH/trim_to_supervision_groups.py" \
+            --input "$ALI_MEETING_MANIFESTS_DIR/${manifest_prefix}_cutset_train.jsonl.gz" \
+            --output "$ALI_MEETING_MANIFESTS_DIR/${manifest_prefix}_cutset_train_grouped.jsonl.gz" \
+            --max_pause 2 --stochastic --num_stochastic_copies 2 --offset_window 30
+
+        python "$DATA_SCRIPTS_PATH/filter_by_length.py" \
+            --input "$ALI_MEETING_MANIFESTS_DIR/${manifest_prefix}_cutset_train_grouped.jsonl.gz" \
+            --output "$ALI_MEETING_MANIFESTS_DIR/${manifest_prefix}_cutset_train_30s.jsonl.gz" \
+            --max_len 30
+
+        rm "$ALI_MEETING_MANIFESTS_DIR/${manifest_prefix}_cutset_train_grouped.jsonl.gz"
+    fi
 
     echo "AliMeeting $MIC_TYPE dataset preparation completed."
 done

@@ -1,4 +1,5 @@
-lhotse @ git+https://github.com/Lakoc/lhotse.git@merged
+lhotse==1.33.0
 huggingface-hub==0.35.3
 textgrid
 pre-commit
+gdown

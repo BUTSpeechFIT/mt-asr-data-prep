@@ -13,8 +13,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--input_supset",
         type=str,
-        required=True,
-        help="Path to the supervisions manifest",
+        default=None,
+        help="Path to the supervisions manifest. Omit for recording-only corpora "
+        "(e.g. noise/augmentation data) that have no supervisions.",
     )
     parser.add_argument(
         "--output", type=str, required=True, help="Path to the output manifest"
@@ -23,6 +24,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     rc = load_manifest(args.input_recset)
-    ss = load_manifest(args.input_supset)
 
-    CutSet.from_manifests(*fix_manifests(rc, ss)).to_file(args.output)
+    if args.input_supset is not None:
+        ss = load_manifest(args.input_supset)
+        rc, ss = fix_manifests(rc, ss)
+        CutSet.from_manifests(recordings=rc, supervisions=ss).to_file(args.output)
+    else:
+        CutSet.from_manifests(recordings=rc).to_file(args.output)

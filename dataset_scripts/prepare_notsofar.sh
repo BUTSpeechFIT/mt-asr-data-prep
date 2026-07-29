@@ -59,7 +59,7 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
         echo "Downloading NOTSOFAR-1 $MIC_TYPE data..."
         lhotse download notsofar1 \
             -p train -p dev -p test \
-            --mic $MIC_TYPES \
+            --mic "$MIC_TYPE" \
             --train-version "${VERSIONS[0]}" \
             --dev-version "${VERSIONS[1]}" \
             --test-version "${VERSIONS[2]}" \
@@ -81,11 +81,36 @@ for MIC_TYPE in "${MIC_TYPES[@]}"; do
 
     echo "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset.jsonl.gz"
 
-    echo "Preparing windowed cuts for Whisper training..."
-    python "$DATA_SCRIPTS_PATH/pre_segment_using_alignments.py" \
-        --input "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset.jsonl.gz" \
-        --output "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset_30s.jsonl.gz" \
-        --max_len 30
+    if [[ "$MIC_TYPE" == "ihm" ]]; then
+        # A speaker's close-talk mic still picks up faint cross-talk from other
+        # speakers during overlapping speech. Trim each segment down to the parts where
+        # no other speaker (per the sdm reference, which has everyone's segments) was
+        # also talking, using word alignment to trim precisely. This already emits one
+        # cut per clean utterance, trimmed exactly to its span -- so unlike sdm/mdm,
+        # ihm does NOT go through pre_segment_using_alignments.py's grouping/windowing
+        # afterward, which could re-stitch a cross-talk gap back into one audio span.
+        echo "Filtering cross-talk for NOTSOFAR-1 ihm..."
+        sdm_reference="$NOTSOFAR_MANIFESTS_DIR/notsofar1_sdm_${SPLITS[0]}_supervisions.jsonl.gz"
+        if [[ ! -f "$sdm_reference" ]]; then
+            echo "Error: $sdm_reference not found. Cross-talk filtering for NOTSOFAR-1 ihm"
+            echo "needs notsofar1-sdm prepared first (bash prepare_notsofar.sh ... sdm)."
+            exit 1
+        fi
+        python "$DATA_SCRIPTS_PATH/filter_crosstalk_segments.py" \
+            --input "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset.jsonl.gz" \
+            --reference_supset "$sdm_reference" \
+            --reference_prefix_to_strip "sdm_" \
+            --reference_session_id_regex '^(MTG_[0-9]+)_' \
+            --session_id_regex '^ihm_(MTG_[0-9]+)_close_talk_' \
+            --output "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset_30s.jsonl.gz" \
+            --max_segment_duration 30
+    else
+        echo "Preparing windowed cuts for Whisper training..."
+        python "$DATA_SCRIPTS_PATH/pre_segment_using_alignments.py" \
+            --input "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset.jsonl.gz" \
+            --output "$NOTSOFAR_MANIFESTS_DIR/${manifest_prefix}_${SPLITS[0]}_cutset_30s.jsonl.gz" \
+            --max_len 30 --stochastic --num_stochastic_copies 2
+    fi
 
     echo "NOTSOFAR-1 $MIC_TYPE dataset preparation completed"
 done
