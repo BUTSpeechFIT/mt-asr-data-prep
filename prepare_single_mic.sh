@@ -11,7 +11,7 @@ readonly SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 readonly DATASET_SCRIPTS_DIR="$SCRIPT_DIR/dataset_scripts"
 
 readonly AVAILABLE_DATASETS=(
-    "librispeech" "librimix" "librispeechmix" "ali_meeting-sdm" "ami-sdm" "ami-ihm-mix" "notsofar1-sdm" "musan" "fastmss"
+    "librispeech" "librimix" "librispeechmix" "ali_meeting-sdm" "ami-sdm" "ami-ihm-mix" "ami-ihm" "notsofar1-sdm" "notsofar1-ihm" "musan" "fastmss"
 )
 
 # Dataset dependencies (bash 3 compatible)
@@ -25,6 +25,32 @@ get_dataset_dependency() {
             ;;
         fastmss)
             echo "librispeech"
+            ;;
+        # The ihm cross-talk filter trims each close-talk segment against the sdm
+        # supervisions, which hold every speaker's segments for the session.
+        ami-ihm)
+            echo "ami-sdm"
+            ;;
+        notsofar1-ihm)
+            echo "notsofar1-sdm"
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
+
+# Manifest that must exist for a dependency to count as prepared (may be a glob)
+get_dependency_manifest() {
+    case "$1" in
+        librispeech)
+            echo "$MANIFESTS_DIR/librispeech/librispeech_cutset_train-clean-100.jsonl.gz"
+            ;;
+        ami-sdm)
+            echo "$MANIFESTS_DIR/ami/ami-sdm_supervisions_train.jsonl.gz"
+            ;;
+        notsofar1-sdm)
+            echo "$MANIFESTS_DIR/notsofar1/notsofar1_sdm_train_set_*_supervisions.jsonl.gz"
             ;;
         *)
             echo ""
@@ -139,8 +165,10 @@ check_dependency() {
     local dependency="$(get_dataset_dependency "$dataset")"
 
     if [[ -n "$dependency" ]]; then
-        local dep_manifest="$MANIFESTS_DIR/${dependency}/${dependency}_cutset_train-clean-100.jsonl.gz"
-        if [[ ! -f "$dep_manifest" ]]; then
+        local dep_manifest="$(get_dependency_manifest "$dependency")"
+        # Unquoted so a glob pattern expands; an unmatched glob stays literal and fails -f
+        local -a dep_matches=($dep_manifest)
+        if [[ ! -f "${dep_matches[0]-}" ]]; then
             log_error "Dependency '$dependency' not found for dataset '$dataset'"
             log_error "Please prepare '$dependency' first"
             return 1
@@ -179,12 +207,13 @@ prepare_dataset() {
             log_error "Failed to prepare dataset: $dataset"
             return 1
         fi
-    # Handle NotSoFar1 SDM dataset specially
-    elif [[ "$dataset" == "notsofar1-sdm" ]]; then
-        log_info "Preparing NotSoFar1 SDM dataset"
-        log_debug "Running NotSoFar script with mic type: sdm"
+    # Handle NotSoFar1 datasets specially
+    elif [[ "$dataset" =~ ^notsofar1- ]]; then
+        local mic_type="${dataset#notsofar1-}"  # Extract mic type from dataset name
+        log_info "Preparing NotSoFar1 dataset: $dataset (mic: $mic_type)"
+        log_debug "Running NotSoFar script with mic type: $mic_type"
 
-        if bash "$DATASET_SCRIPTS_DIR/prepare_notsofar.sh" "$DATA_DIR" "$MANIFESTS_DIR" "$DATA_SCRIPTS_PATH" "sdm"; then
+        if bash "$DATASET_SCRIPTS_DIR/prepare_notsofar.sh" "$DATA_DIR" "$MANIFESTS_DIR" "$DATA_SCRIPTS_PATH" "$mic_type"; then
             log_info "Completed dataset: $dataset"
         else
             log_error "Failed to prepare dataset: $dataset"

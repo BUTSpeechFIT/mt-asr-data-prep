@@ -28,10 +28,12 @@ Official JSALT 2025 benchmark built directly on cutsets from this repo.
 ---
 
 ## 📚 Supported Datasets
-**Single-mic**: `librispeech`, `librimix`, `librispeechmix`, `ali_meeting-sdm`, `ami-sdm`, `ami-ihm-mix`, `notsofar1-sdm`, `musan`, `fastmss`  
+**Single-mic**: `librispeech`, `librimix`, `librispeechmix`, `ali_meeting-sdm`, `ami-sdm`, `ami-ihm-mix`, `ami-ihm`, `notsofar1-sdm`, `notsofar1-ihm`, `musan`, `fastmss`  
 **Multi-mic**: `aishell4`
 
 > **Note**: the pipeline is currently optimized for **single-channel** training data. `ali_meeting-sdm`, `ami-sdm`/`ami-ihm-mix`, and `notsofar1-sdm` use each corpus's native single-channel track. AISHELL-4 has no native single-channel release, so it's downmixed (summed) from its 8-channel array to mono, alongside the original multi-channel cutset. `ami-mdm`, `ali_meeting-mdm`, and `notsofar1-mdm` multi-channel support is not implemented yet.
+
+> **Close-talk (`ihm`)**: `ami-ihm` and `notsofar1-ihm` yield one cut per speaker's own headset mic, trimmed to the spans where nobody else was talking (cross-talk filtering) — single-speaker cuts in the same shape as LibriSpeech, for pretraining. Both are included in `--datasets all` and each **depends on its `sdm` counterpart**, which supplies the all-speaker reference segmentation; the dependency is prepared automatically first. Note `ami-ihm` also writes per-channel split audio under `data/ami/ihm_split_audio/`, so budget extra disk for it.
 
 ---
 
